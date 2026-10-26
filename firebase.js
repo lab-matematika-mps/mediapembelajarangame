@@ -1,17 +1,13 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getFirestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCxmnXzt33r_JKKjlMGGD3muQR35vBBOxw",
-  authDomain: "game-lab-matematika.firebaseapp.com",
-  projectId: "game-lab-matematika",
-  storageBucket: "game-lab-matematika.firebasestorage.app",
-  messagingSenderId: "708160210784",
-  appId: "1:708160210784:web:1a3f454716fb917c6b8005"
+  // (Isi dengan kode config dari web Firebase milikmu)
+  apiKey: "AIzaSy...",
+  // ... (sisanya)
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// BARIS INI SANGAT PENTING, PASTIKAN ADA:
+export const db = getFirestore(app);

@@ -31,14 +31,22 @@ export default function Lobby() {
 
   const buatRoomBaru = async () => {
     try {
+      const daftarSoal = [
+        { pertanyaan: "Berapa FPB dari 12 dan 18?", opsi: ["2", "4", "6", "8"], jawabanBenar: "6" },
+        { pertanyaan: "Hasil dari 7 x 8 adalah?", opsi: ["54", "56", "64", "48"], jawabanBenar: "56" },
+        { pertanyaan: "Akar kuadrat dari 144 adalah?", opsi: ["10", "12", "14", "16"], jawabanBenar: "12" }
+      ];
+
       const docRef = await addDoc(collection(db, "rooms"), {
         nama_room: `Arena ${Math.floor(Math.random() * 1000)}`,
         status: "waiting",
-        host: namaPeserta
+        host: namaPeserta,
+        soal: daftarSoal,
+        soal_aktif: 0
       });
       router.push(`/room/${docRef.id}`);
     } catch (error) {
-      alert("Database belum merespons. Pastikan kode config Firebase sudah diisi nanti.");
+      alert("Database belum merespons. Pastikan kode config Firebase sudah diisi.");
     }
   };
 

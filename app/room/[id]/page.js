@@ -3,9 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, onSnapshot, updateDoc, setDoc, collection, query, orderBy, getDocs, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Trophy, Play, XSquare, Navigation, Gift, Target, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map } from "lucide-react";
+import { Trophy, Play, XSquare, Navigation, Gift, Target, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
-const GRID_SIZE = 10; // Ukuran papan catur 10x10 (Koordinat 0-9)
+const GRID_SIZE = 10; // Ukuran papan catur 10x10
 
 export default function Room() {
   const { id } = useParams();
@@ -18,7 +18,7 @@ export default function Room() {
   const [players, setPlayers] = useState([]);
   
   // State Permainan (Siswa)
-  const [posisi, setPosisi] = useState({ x: 0, y: 0 }); // Start di pojok kiri atas
+  const [posisi, setPosisi] = useState({ x: 0, y: 0 });
   const [soalAktif, setSoalAktif] = useState(null);
   const [feedback, setFeedback] = useState(null);
 
@@ -41,23 +41,19 @@ export default function Room() {
     
     setParticlesEnabled(localStorage.getItem("particlesEnabled") !== "false");
 
-    // PASTIKAN MUSIK MATI SAAT MASUK KE ROOM INI
     if (typeof window !== "undefined" && window.bgMusic) {
       window.bgMusic.pause();
     }
 
-    // Daftarkan posisi awal pemain ke Firestore (Grid 0,0)
     const playerRef = doc(db, `rooms/${id}/players`, nama);
     setDoc(playerRef, { nama, skor: 0, x: 0, y: 0, status: "menjelajah" }, { merge: true });
 
-    // Listener Data Room
     const roomRef = doc(db, "rooms", id);
     const unsubRoom = onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) setRoomData(docSnap.data());
       else router.push("/lobby");
     });
 
-    // Listener Data Players
     const unsubPlayers = onSnapshot(query(collection(db, `rooms/${id}/players`), orderBy("skor", "desc")), (snapshot) => {
       setPlayers(snapshot.docs.map(doc => doc.data()));
     });
@@ -65,44 +61,49 @@ export default function Room() {
     return () => { unsubRoom(); unsubPlayers(); };
   }, [id, router]);
 
-  // --- KONTROL PERGERAKAN PAPAN CATUR ---
-  useEffect(() => {
-    const handleKeyDown = async (e) => {
-      if (soalAktif || !roomData || roomData.status !== "playing") return;
+  // --- LOGIKA UTAMA PERGERAKAN KARAKTER (BISA DIPANGGUL KEYBOARD MAUPUN JOYSTICK HP) ---
+  const gerak = async (arah) => {
+    if (soalAktif || !roomData || roomData.status !== "playing") return;
+    
+    let newX = posisi.x;
+    let newY = posisi.y;
+
+    if (arah === "UP") newY = Math.max(0, newY - 1);
+    if (arah === "DOWN") newY = Math.min(GRID_SIZE - 1, newY + 1);
+    if (arah === "LEFT") newX = Math.max(0, newX - 1);
+    if (arah === "RIGHT") newX = Math.min(GRID_SIZE - 1, newX + 1);
+
+    if (newX !== posisi.x || newY !== posisi.y) {
+      setPosisi({ x: newX, y: newY });
+      await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { x: newX, y: newY });
+
+      // Deteksi Tabrakan Harta Karun
+      const currentTreasure = roomData.soal?.find(s => s.x === newX && s.y === newY && !s.isSelesai);
       
-      let newX = posisi.x;
-      let newY = posisi.y;
-
-      if (e.key === "ArrowUp" || e.key === "w") newY = Math.max(0, newY - 1);
-      if (e.key === "ArrowDown" || e.key === "s") newY = Math.min(GRID_SIZE - 1, newY + 1);
-      if (e.key === "ArrowLeft" || e.key === "a") newX = Math.max(0, newX - 1);
-      if (e.key === "ArrowRight" || e.key === "d") newX = Math.min(GRID_SIZE - 1, newX + 1);
-
-      // Jika ada pergerakan
-      if (newX !== posisi.x || newY !== posisi.y) {
-        setPosisi({ x: newX, y: newY });
-        await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { x: newX, y: newY });
-
-        // Cek Deteksi Tabrakan dengan Harta Karun di koordinat baru
-        const currentTreasure = roomData.soal?.find(s => s.x === newX && s.y === newY && !s.isSelesai);
-        
-        if (currentTreasure) {
-          if (currentTreasure.claimedBy === null || currentTreasure.claimedBy === namaPeserta) {
-            // Bisa Diambil!
-            setSoalAktif(currentTreasure);
-            if (currentTreasure.claimedBy === null) {
-              const newSoal = [...roomData.soal];
-              const tIndex = newSoal.findIndex(s => s.soalIndex === currentTreasure.soalIndex);
-              newSoal[tIndex] = { ...newSoal[tIndex], claimedBy: namaPeserta };
-              updateDoc(doc(db, "rooms", id), { soal: newSoal });
-            }
-          } else {
-            // Sudah diambil orang lain
-            setFeedback({ type: "WARNING", text: `Diklaim oleh ${currentTreasure.claimedBy}!` });
-            setTimeout(() => setFeedback(null), 2000);
+      if (currentTreasure) {
+        if (currentTreasure.claimedBy === null || currentTreasure.claimedBy === namaPeserta) {
+          setSoalAktif(currentTreasure);
+          if (currentTreasure.claimedBy === null) {
+            const newSoal = [...roomData.soal];
+            const tIndex = newSoal.findIndex(s => s.soalIndex === currentTreasure.soalIndex);
+            newSoal[tIndex] = { ...newSoal[tIndex], claimedBy: namaPeserta };
+            updateDoc(doc(db, "rooms", id), { soal: newSoal });
           }
+        } else {
+          setFeedback({ type: "WARNING", text: `Diklaim oleh ${currentTreasure.claimedBy}!` });
+          setTimeout(() => setFeedback(null), 2000);
         }
       }
+    }
+  };
+
+  // --- KEYBOARD EVENT LISTENER ---
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "ArrowUp" || e.key === "w") gerak("UP");
+      if (e.key === "ArrowDown" || e.key === "s") gerak("DOWN");
+      if (e.key === "ArrowLeft" || e.key === "a") gerak("LEFT");
+      if (e.key === "ArrowRight" || e.key === "d") gerak("RIGHT");
     };
     
     window.addEventListener("keydown", handleKeyDown);
@@ -112,7 +113,6 @@ export default function Room() {
   // --- FUNGSI GURU (HOST): MULAI GAME & GENERATE SOAL ---
   const mulaiGame = async () => {
     try {
-      // 1. Ambil soal dari Firebase berdasarkan pengaturan Host
       const q = query(collection(db, "daftar_soal"), 
         where("materi", "==", pengaturan.materi),
         where("tingkat", "==", pengaturan.tingkat)
@@ -120,7 +120,6 @@ export default function Room() {
       const snapshot = await getDocs(q);
       let allSoal = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
       
-      // 2. Acak soal dan ambil sesuai jumlah yang diminta
       allSoal = allSoal.sort(() => 0.5 - Math.random()).slice(0, parseInt(pengaturan.jumlah));
       
       if(allSoal.length === 0) {
@@ -128,9 +127,8 @@ export default function Room() {
         return;
       }
 
-      // 3. Tentukan koordinat acak di Papan Catur untuk masing-masing soal
       const usedCoords = new Set();
-      usedCoords.add("0,0"); // Jangan taruh soal tepat di titik start pemain
+      usedCoords.add("0,0"); 
       
       const soalWithCoords = allSoal.map((soal, index) => {
         let rx, ry;
@@ -145,12 +143,11 @@ export default function Room() {
           soalIndex: index,
           x: rx,
           y: ry,
-          claimedBy: null, // Siapa yang sedang ngerjain soal ini
-          isSelesai: false // Apakah soal sudah dijawab benar
+          claimedBy: null,
+          isSelesai: false
         };
       });
 
-      // 4. Mulai Permainan
       await updateDoc(doc(db, "rooms", id), { 
         status: "playing",
         pengaturan: pengaturan,
@@ -174,13 +171,11 @@ export default function Room() {
     const tIndex = newSoal.findIndex(s => s.soalIndex === soalAktif.soalIndex);
 
     if (isBenar) {
-      // Jika Benar: Tambah skor & hapus harta dari peta
       const skorBaru = skor + 10;
       setSkor(skorBaru);
       await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { skor: skorBaru });
       newSoal[tIndex] = { ...newSoal[tIndex], isSelesai: true };
     } else {
-      // Jika Salah: Lepaskan klaim soal agar bisa direbut kembali
       newSoal[tIndex] = { ...newSoal[tIndex], claimedBy: null };
     }
     
@@ -192,7 +187,7 @@ export default function Room() {
     }, 1500); 
   };
 
-  // --- ENGINE ANIMASI CANVAS (BACKGROUND TETAP SAMA) ---
+  // --- ENGINE ANIMASI CANVAS ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !roomData?.tema) return;
@@ -244,10 +239,9 @@ export default function Room() {
 
   const isHost = roomData.host === namaPeserta;
   const temaAktif = roomData.tema || "galaxy";
-  const gameMode = roomData.pengaturan?.mode || "Kumpulkan Harta";
 
   return (
-    <main className={`theme-${temaAktif} min-h-screen relative flex flex-col overflow-hidden font-sans text-[var(--text-main)] transition-colors duration-1000 select-none`}>
+    <main className={`theme-${temaAktif} min-h-screen relative flex flex-col overflow-hidden font-sans text-[var(--text-main)] transition-colors duration-1000 select-none pb-12`}>
       <style dangerouslySetInnerHTML={{ __html: `
         :root { --font-main: 'Space Grotesk', sans-serif; }
         .theme-galaxy { --bg-top: #0a0a1a; --bg-bottom: #1a0b2e; --primary: #00f3ff; --primary-hover: #00d0ff; --secondary: #b900ff; --text-main: #ffffff; --text-muted: #a0a0b8; --glass-bg: rgba(20, 20, 40, 0.6); --glass-border: rgba(0, 243, 255, 0.2); --glow-shadow: 0 0 20px rgba(0, 243, 255, 0.5); background: linear-gradient(135deg, var(--bg-top), var(--bg-bottom)); }
@@ -268,54 +262,53 @@ export default function Room() {
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4">
           
           {/* Petunjuk HUD Kiri Atas */}
-          <div className="absolute top-6 left-6 z-20 glass-panel p-4 border-l-4 border-l-[var(--primary)] max-w-[200px] hidden md:block">
-            <h3 className="font-black flex items-center gap-2 mb-2 text-[var(--primary)]"><Target size={18}/> Misi Papan Catur</h3>
-            <p className="text-xs text-[var(--text-muted)] leading-relaxed">Gunakan <b>W A S D / Panah</b> untuk bergerak kotak demi kotak.</p>
-            <div className="mt-3 pt-2 border-t border-[var(--glass-border)] flex flex-col">
-              <span className="text-xs font-bold text-[var(--text-main)]">Skor Kamu:</span>
-              <span className="text-xl font-black text-gradient">{skor} Pts</span>
+          <div className="absolute top-4 left-4 z-20 glass-panel p-3 border-l-4 border-l-[var(--primary)] max-w-[180px] hidden md:block">
+            <h3 className="font-black flex items-center gap-1.5 text-xs text-[var(--primary)]"><Target size={16}/> Papan Catur</h3>
+            <p className="text-[10px] text-[var(--text-muted)] leading-tight mt-1">Gunakan Keyboard atau D-Pad Layar HP.</p>
+            <div className="mt-2 pt-2 border-t border-[var(--glass-border)] flex justify-between items-center">
+              <span className="text-xs font-bold">Skor:</span>
+              <span className="text-lg font-black text-gradient">{skor} Pts</span>
             </div>
           </div>
 
-          {/* Notifikasi Tabrakan / Feedback Toast */}
+          {/* Feedback Toast */}
           {feedback?.type === "WARNING" && (
-            <div className="absolute top-10 bg-rose-500/90 text-white font-bold px-6 py-3 rounded-full z-50 animate-bounce shadow-2xl flex items-center gap-2">
-              <XOctagon size={20} /> {feedback.text}
+            <div className="absolute top-6 bg-rose-500/90 text-white font-bold px-6 py-3 rounded-full z-50 animate-bounce shadow-2xl flex items-center gap-2 text-sm">
+              <XOctagon size={18} /> {feedback.text}
             </div>
           )}
 
-          {/* === PAPAN CATUR ARENA (GRID 10x10) === */}
-          <div className="relative w-full max-w-[600px] aspect-square glass-panel p-0 overflow-hidden shadow-[var(--glow-shadow)] mx-auto mt-10 md:mt-0">
-            {/* Grid Garis Papan Catur */}
+          {/* PAPAN CATUR ARENA (GRID 10x10) */}
+          <div className="relative w-full max-w-[420px] aspect-square glass-panel p-0 overflow-hidden shadow-[var(--glow-shadow)] mx-auto mt-2">
             <div className="absolute inset-0 grid grid-cols-10 grid-rows-10">
               {Array.from({ length: 100 }).map((_, i) => (
                 <div key={i} className={`border border-white/10 ${ (Math.floor(i/10) + i%10) % 2 === 0 ? 'bg-white/5' : 'bg-transparent' }`} />
               ))}
             </div>
 
-            {/* Render Harta Karun (Soal) */}
+            {/* Harta Karun */}
             {roomData.soal?.map((s) => !s.isSelesai && (
               <div key={s.soalIndex} className="absolute w-[10%] h-[10%] flex items-center justify-center transition-all duration-300" style={{ left: `${s.x * 10}%`, top: `${s.y * 10}%` }}>
-                <div className={`relative ${s.claimedBy ? 'opacity-40 grayscale scale-90' : 'animate-bounce group'}`}>
+                <div className={`relative ${s.claimedBy ? 'opacity-40 grayscale scale-90' : 'animate-bounce'}`}>
                   <div className="absolute inset-0 bg-amber-400 blur-md opacity-40 rounded-full"></div>
-                  <Gift size={32} className={`relative z-10 ${s.claimedBy ? 'text-gray-400' : 'text-amber-400 drop-shadow-lg'}`} />
+                  <Gift size={26} className={`relative z-10 ${s.claimedBy ? 'text-gray-400' : 'text-amber-400 drop-shadow-lg'}`} />
                 </div>
                 {s.claimedBy && s.claimedBy !== namaPeserta && (
-                  <span className="absolute -top-5 text-[9px] bg-rose-500/90 px-2 py-0.5 rounded text-white whitespace-nowrap font-bold shadow-lg z-30">
-                    Diambil {s.claimedBy}
+                  <span className="absolute -top-4 text-[8px] bg-rose-500/90 px-1 rounded text-white font-bold z-30">
+                    {s.claimedBy}
                   </span>
                 )}
               </div>
             ))}
 
-            {/* Render Karakter Pemain */}
+            {/* Pemain */}
             {players.map((p, idx) => (
               <div key={idx} className="absolute w-[10%] h-[10%] flex items-center justify-center transition-all duration-300 z-20" style={{ left: `${p.x * 10}%`, top: `${p.y * 10}%` }}>
                 <div className="relative flex flex-col items-center">
-                  <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center font-black transition-all shadow-xl border-2 ${ p.nama === namaPeserta ? "bg-[var(--primary)]/90 border-white shadow-[var(--glow-shadow)] scale-110 z-30" : "bg-white/20 border-white/50 backdrop-blur-md z-10" }`}>
-                    {p.nama === namaPeserta ? <Navigation size={20} className="text-slate-900 -rotate-45" /> : <span className="text-white/80 text-sm">📦</span>}
+                  <div className={`w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center font-black transition-all border ${ p.nama === namaPeserta ? "bg-[var(--primary)]/90 border-white shadow-[var(--glow-shadow)] scale-110 z-30" : "bg-white/20 border-white/50 backdrop-blur-md z-10" }`}>
+                    {p.nama === namaPeserta ? <Navigation size={16} className="text-slate-900 -rotate-45" /> : <span className="text-white/80 text-xs">📦</span>}
                   </div>
-                  <span className={`absolute -bottom-5 text-[9px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap z-40 ${p.nama === namaPeserta ? 'bg-[var(--primary)] text-slate-900' : 'bg-black/70 text-white'}`}>
+                  <span className={`absolute -bottom-4 text-[8px] font-black px-1 rounded whitespace-nowrap z-40 ${p.nama === namaPeserta ? 'bg-[var(--primary)] text-slate-900' : 'bg-black/70 text-white'}`}>
                     {p.nama}
                   </span>
                 </div>
@@ -323,27 +316,56 @@ export default function Room() {
             ))}
           </div>
 
+          {/* D-PAD JOYSTICK VIRTUAL KHUSUS HP/TOUCH DEVICE */}
+          <div className="mt-4 flex flex-col items-center justify-center gap-1 z-30">
+            <button 
+              onClick={() => gerak("UP")} 
+              className="w-12 h-12 glass-panel border-[var(--primary)]/50 flex items-center justify-center active:scale-90 text-[var(--primary)] shadow-[var(--glow-shadow)] rounded-xl"
+            >
+              <ChevronUp size={28} />
+            </button>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => gerak("LEFT")} 
+                className="w-12 h-12 glass-panel border-[var(--primary)]/50 flex items-center justify-center active:scale-90 text-[var(--primary)] shadow-[var(--glow-shadow)] rounded-xl"
+              >
+                <ChevronLeft size={28} />
+              </button>
+              <button 
+                onClick={() => gerak("RIGHT")} 
+                className="w-12 h-12 glass-panel border-[var(--primary)]/50 flex items-center justify-center active:scale-90 text-[var(--primary)] shadow-[var(--glow-shadow)] rounded-xl"
+              >
+                <ChevronRight size={28} />
+              </button>
+            </div>
+            <button 
+              onClick={() => gerak("DOWN")} 
+              className="w-12 h-12 glass-panel border-[var(--primary)]/50 flex items-center justify-center active:scale-90 text-[var(--primary)] shadow-[var(--glow-shadow)] rounded-xl"
+            >
+              <ChevronDown size={28} />
+            </button>
+          </div>
+
           {/* Modal Mengerjakan Soal Pop-up */}
           {soalAktif && (
             <div className="absolute inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-opacity">
-              <div className="glass-panel p-8 md:p-10 w-full max-w-2xl text-center relative border-[var(--primary)]/50 shadow-[var(--glow-shadow)] overflow-hidden">
-                
+              <div className="glass-panel p-6 md:p-10 w-full max-w-xl text-center relative border-[var(--primary)]/50 shadow-[var(--glow-shadow)] overflow-hidden">
                 {feedback && feedback.type !== "WARNING" && (
                   <div className="absolute inset-0 glass-panel border-none rounded-2xl flex flex-col items-center justify-center z-20" style={{ background: 'var(--glass-bg)'}}>
                     {feedback.type === "BENAR" ? (
-                      <><ShieldCheck size={80} className="text-emerald-400 mb-4 animate-bounce drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]" /><h1 className="text-4xl md:text-5xl font-black text-emerald-400">{feedback.text}</h1><p className="mt-2 text-emerald-200 font-bold">+10 Poin</p></>
+                      <><ShieldCheck size={70} className="text-emerald-400 mb-3 animate-bounce" /><h1 className="text-3xl md:text-4xl font-black text-emerald-400">{feedback.text}</h1><p className="mt-1 text-emerald-200 font-bold">+10 Poin</p></>
                     ) : (
-                      <><XOctagon size={80} className="text-rose-400 mb-4 animate-pulse drop-shadow-[0_0_15px_rgba(251,113,133,0.5)]" /><h1 className="text-4xl md:text-5xl font-black text-rose-400">{feedback.text}</h1><p className="mt-2 text-rose-200 font-bold">Soal kembali disebar!</p></>
+                      <><XOctagon size={70} className="text-rose-400 mb-3 animate-pulse" /><h1 className="text-3xl md:text-4xl font-black text-rose-400">{feedback.text}</h1><p className="mt-1 text-rose-200 font-bold">Soal kembali disebar!</p></>
                     )}
                   </div>
                 )}
 
-                <span className="inline-block bg-[var(--primary)]/20 text-[var(--primary)] text-xs font-black px-5 py-2 rounded-full border border-[var(--primary)]/40 tracking-widest mb-6 shadow-[0_0_10px_var(--primary)]">SOAL TERKUNCI OLEHMU</span>
-                <p className="mb-8 text-xl md:text-2xl font-bold leading-relaxed">{soalAktif.pertanyaan}</p>
+                <span className="inline-block bg-[var(--primary)]/20 text-[var(--primary)] text-[10px] font-black px-4 py-1.5 rounded-full border border-[var(--primary)]/40 tracking-widest mb-4">SOAL TERKUNCI OLEHMU</span>
+                <p className="mb-6 text-lg md:text-xl font-bold leading-relaxed">{soalAktif.pertanyaan}</p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {soalAktif.opsi.map((opsi, idx) => (
-                    <button key={idx} onClick={() => jawabSoal(opsi)} className="glass-btn p-5 rounded-2xl font-bold text-lg hover:bg-[var(--primary)]/20 hover:border-[var(--primary)] active:scale-95 flex items-center justify-center">
+                    <button key={idx} onClick={() => jawabSoal(opsi)} className="glass-btn p-4 rounded-xl font-bold text-base hover:bg-[var(--primary)]/20 hover:border-[var(--primary)] active:scale-95 flex items-center justify-center">
                       {opsi}
                     </button>
                   ))}
@@ -355,7 +377,7 @@ export default function Room() {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. DASHBOARD HOST (PENGATURAN AWAL & LIVE PANTUAN)                      */}
+      {/* 2. DASHBOARD HOST & STATUS LAINNYA                                        */}
       {/* ========================================================================= */}
       {(isHost || roomData.status !== "playing") && (
         <div className="relative z-20 flex-1 flex items-center justify-center p-6 w-full">
@@ -454,7 +476,7 @@ export default function Room() {
               </div>
             )}
 
-            {/* PANTUAN LIVE GURU (STATUS: PLAYING) */}
+            {/* PANTUAN LIVE GURU */}
             {roomData.status === "playing" && isHost && (
               <div>
                 <div className="flex items-center justify-center gap-3 mb-6">

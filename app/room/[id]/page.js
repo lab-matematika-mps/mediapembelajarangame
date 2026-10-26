@@ -1,11 +1,13 @@
+// lab-matematika-mps/mediapembelajarangame/app/room/[id]/page.js
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, onSnapshot, updateDoc, setDoc, collection, query, orderBy, getDocs, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Trophy, Play, XSquare, Navigation, Gift, Target, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Timer, Flag } from "lucide-react";
+import { Trophy, Play, XSquare, Navigation, Gift, Target, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Timer, Flag, Cat, Dog, Rabbit, Bird } from "lucide-react";
 
 const GRID_SIZE = 10;
+const ANIMAL_ICONS = [Cat, Dog, Rabbit, Bird]; // Ikon Unicolor Lucide
 
 export default function Room() {
   const { id } = useParams();
@@ -59,7 +61,7 @@ export default function Room() {
           setDoc(playerRef, { nama, skor: 0, x: 0, y: 0 }, { merge: true });
         }
       } else {
-        router.push("/lobby");
+        router.push("/dashboard");
       }
     });
 
@@ -229,44 +231,46 @@ export default function Room() {
   // --- KUMPULAN KOMPONEN RENDER KHUSUS ---
   const formatTime = (secs) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
 
+  // Komponen Lintasan Baru (Melengkung & Unicolor Icons)
   const TrackComponent = ({ pPlayers, pPengaturan }) => (
-    <div className="flex flex-row md:flex-col w-full h-[60vh] md:h-auto md:w-full gap-3 p-4 glass-panel border border-[var(--primary)]/50 shadow-[var(--glow-shadow)] rounded-3xl overflow-hidden animate-fadeIn">
-      {pPlayers.slice(0, 4).map((p, i) => {
-        const target = parseInt(pPengaturan.jumlah) * 10;
-        const progress = Math.min((p.skor / target) * 100, 100);
-        
-        return (
-          <div key={i} className="flex-1 relative bg-black/40 border border-white/10 rounded-2xl overflow-hidden min-h-[60px]">
-            {/* Area Finish Marker */}
-            <div className="absolute top-0 w-full h-14 bg-emerald-500/20 border-b-2 border-emerald-500/50 md:hidden flex items-center justify-center text-xl z-0">🏁</div>
-            <div className="absolute right-0 h-full w-14 bg-emerald-500/20 border-l-2 border-emerald-500/50 hidden md:flex items-center justify-center text-2xl z-0">🏁</div>
-            
-            {/* Garis Putus-Putus Lintasan */}
-            <div className="absolute inset-0 flex items-center justify-center opacity-30 z-0">
-              <div className="h-full w-0 border-l-2 border-dashed border-white md:w-full md:h-0 md:border-l-0 md:border-t-2"></div>
+    <div className="w-full h-full min-h-[300px] flex flex-col justify-center gap-4 p-4 md:p-6 glass-panel border border-[var(--primary)]/50 shadow-[var(--glow-shadow)] rounded-3xl animate-fadeIn relative overflow-hidden">
+      <div className="text-center mb-2 z-10">
+        <h3 className="text-sm md:text-base font-black text-[var(--primary)] uppercase tracking-widest flex items-center justify-center gap-2">
+          <Flag size={18}/> Sirkuit Balapan Matematika <Flag size={18}/>
+        </h3>
+      </div>
+      
+      <div className="space-y-4 md:space-y-6 z-10 w-full">
+        {pPlayers.slice(0, 4).map((p, i) => {
+          const target = parseInt(pPengaturan.jumlah) * 10;
+          const progress = Math.min((p.skor / target) * 100, 100);
+          const IconComp = ANIMAL_ICONS[i % ANIMAL_ICONS.length];
+  
+          return (
+            <div key={i} className="relative bg-black/40 border border-white/10 rounded-full h-14 md:h-16 flex items-center shadow-inner overflow-hidden">
+              {/* Garis Lintasan Melengkung Wave BG */}
+              <div className="absolute inset-x-2 h-1.5 md:h-2 bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-emerald-500/60 rounded-full"></div>
+              
+              {/* Finish Line Indicator */}
+              <div className="absolute right-3 font-black text-xl md:text-2xl z-0 opacity-80">🏁</div>
+  
+              {/* Player Icon & Tag Move Smoothly (Tanpa kedip) */}
+              <div 
+                className="absolute flex items-center gap-2 transition-all duration-1000 ease-out z-10"
+                style={{ left: `calc(${Math.max(2, progress)}% - 10px)` }}
+              >
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-[var(--primary)]/20 border-2 border-[var(--primary)] flex items-center justify-center text-[var(--primary)] shadow-[var(--glow-shadow)] backdrop-blur-md">
+                  <IconComp size={20} className="md:w-6 md:h-6" />
+                </div>
+                <span className="text-[10px] md:text-xs bg-slate-900/90 text-white font-black px-2 md:px-3 py-1 rounded-md border border-white/20 whitespace-nowrap shadow-xl">
+                  {p.nama} ({p.skor} Pts)
+                </span>
+              </div>
             </div>
-
-            {/* Runner Render Mobile (Bottom to Top) */}
-            <div 
-              className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center transition-all duration-[1500ms] ease-in-out md:hidden z-10"
-              style={{ bottom: `calc(${progress}% - 25px)` }}
-            >
-              <span className="text-3xl filter drop-shadow-md">🏃</span>
-              <span className="text-[9px] bg-slate-900/80 px-2 py-0.5 mt-1 rounded text-white font-black whitespace-nowrap shadow-lg border border-white/20">{p.nama}</span>
-            </div>
-
-            {/* Runner Render Desktop (Left to Right) */}
-            <div 
-              className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center justify-center transition-all duration-[1500ms] ease-in-out hidden md:flex z-10"
-              style={{ left: `calc(${progress}% - 25px)` }}
-            >
-              <span className="text-4xl filter drop-shadow-md">🏃‍♂️</span>
-              <span className="text-xs bg-slate-900/80 px-2.5 py-0.5 mt-1.5 rounded text-white font-black whitespace-nowrap shadow-lg border border-white/20">{p.nama}</span>
-            </div>
-          </div>
-        )
-      })}
-      {pPlayers.length === 0 && <div className="text-center w-full py-10 text-white/50 font-bold italic">Lintasan Kosong...</div>}
+          )
+        })}
+        {pPlayers.length === 0 && <div className="text-center w-full py-10 text-white/50 font-bold italic">Menunggu pembalap masuk lintasan...</div>}
+      </div>
     </div>
   );
 
@@ -322,7 +326,7 @@ export default function Room() {
   }, [roomData?.tema, particlesEnabled]);
 
 
-  if (!roomData) return ( <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white font-sans"><div className="animate-pulse flex flex-col items-center gap-4"><Navigation size={48} className="text-indigo-400 animate-spin" /><h2 className="font-bold text-xl tracking-widest text-indigo-200">MEMUAT ARENA...</h2></div></div> );
+  if (!roomData) return ( <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white font-sans"><div className="animate-pulse flex flex-col items-center gap-4"><Navigation size={48} className="text-[var(--primary)] animate-spin" /><h2 className="font-bold text-xl tracking-widest text-[var(--primary)]">MEMUAT ARENA...</h2></div></div> );
   const temaAktif = roomData.tema || "galaxy";
   const modeGame = roomData.pengaturan?.mode || "Kumpulkan Harta";
   const sisaWaktu = Math.max(0, 304 - timeElapsed); // 300 detik game + 4 detik aba-aba
@@ -480,24 +484,27 @@ export default function Room() {
       {/* ========================================================================= */}
       {isHost && roomData.status === "playing" && timeElapsed >= 4 && (
         <div className="absolute inset-0 z-10 flex flex-col md:flex-row gap-6 p-6 w-full max-w-[1400px] mx-auto overflow-hidden pt-28 pb-8">
-          {/* KOLOM KIRI : LEADERBOARD */}
-          <div className="flex-1 glass-panel flex flex-col p-6 shadow-[var(--glow-shadow)] overflow-hidden border-t-4 border-t-[var(--primary)]">
+          
+          {/* KOLOM KIRI : LEADERBOARD MEGAH */}
+          <div className="flex-1 glass-panel flex flex-col p-6 shadow-[var(--glow-shadow)] overflow-hidden border-t-4 border-t-yellow-400">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[var(--glass-border)]">
-              <Trophy size={28} className="text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]" />
-              <h2 className="text-2xl font-black text-white tracking-wide">Live Leaderboard</h2>
+              <Trophy size={32} className="text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] animate-pulse" />
+              <h2 className="text-2xl font-black text-yellow-400 tracking-wide drop-shadow-[0_0_10px_rgba(250,204,21,0.4)]">Live Leaderboard</h2>
             </div>
+            
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
               {activePlayers.length === 0 && <p className="text-gray-400 italic text-center pt-10">Siswa belum ada yang masuk arena...</p>}
               {activePlayers.map((p, index) => (
-                <div key={index} className="flex justify-between items-center bg-white/5 border border-white/10 p-4 rounded-xl hover:bg-white/10 transition-colors">
+                <div key={index} className={`flex justify-between items-center p-4 rounded-xl border transition-all duration-500 ${index === 0 ? 'bg-yellow-500/20 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)] scale-[1.02] z-10 relative' : index === 1 ? 'bg-slate-300/10 border-slate-400 shadow-[0_0_10px_rgba(203,213,225,0.2)]' : index === 2 ? 'bg-amber-600/10 border-amber-600/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
                   <div className="flex items-center gap-4">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${index === 0 ? 'bg-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.5)]' : index === 1 ? 'bg-slate-300 text-black' : index === 2 ? 'bg-amber-600 text-white' : 'bg-white/10 text-white'}`}>{index + 1}</span>
+                    <span className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-base ${index === 0 ? 'bg-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : index === 1 ? 'bg-slate-300 text-black' : index === 2 ? 'bg-amber-600 text-white' : 'bg-white/10 text-white'}`}>{index + 1}</span>
                     <span className="font-bold text-lg">{p.nama}</span>
                   </div>
-                  <span className="font-black text-[var(--primary)] text-xl bg-[var(--primary)]/10 px-3 py-1 rounded-lg border border-[var(--primary)]/30">{p.skor} Pts</span>
+                  <span className={`font-black text-xl px-3 py-1 rounded-lg border ${index === 0 ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/50' : 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'}`}>{p.skor} Pts</span>
                 </div>
               ))}
             </div>
+
             <button onClick={() => akhiriGame("Dihentikan Paksa oleh Guru (Stop)")} className="mt-4 w-full bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500 hover:text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
               <XSquare size={20} /> Hentikan Permainan
             </button>
@@ -508,7 +515,7 @@ export default function Room() {
             <h2 className="text-xl font-black text-[var(--primary)] flex items-center gap-2 mb-6 border-b border-[var(--glass-border)] pb-4">
               <Map size={24}/> Pantauan Arena Live ({modeGame})
             </h2>
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center overflow-hidden w-full">
               {modeGame === "Kumpulkan Harta" ? (
                 <MiniMapKumpulkanHarta rData={roomData} rPlayers={activePlayers} />
               ) : (

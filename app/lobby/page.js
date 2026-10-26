@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection, addDoc, onSnapshot, query, where, getDocs } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../../firebase";
 
 export default function Lobby() {
@@ -9,126 +9,65 @@ export default function Lobby() {
   const [namaPeserta, setNamaPeserta] = useState("");
   const router = useRouter();
 
-  // State untuk generate soal
-  const [genMateri, setGenMateri] = useState("Ciri-ciri Bangun Datar");
-  const [genTingkat, setGenTingkat] = useState("Mudah");
-  const [genJumlah, setGenJumlah] = useState(5);
-
   useEffect(() => {
     const nama = localStorage.getItem("nama_peserta");
-    if (!nama) {
-      router.push("/");
-      return;
-    }
+    if (!nama) return router.push("/");
     setNamaPeserta(nama);
 
     const q = query(collection(db, "rooms"), where("status", "==", "waiting"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
-
     return () => unsubscribe();
   }, [router]);
 
-  const generateArena = async () => {
+  const buatArenaBaru = async () => {
     try {
-      // 1. Ambil semua soal dari materi yang dipilih
-      const qSoal = query(collection(db, "daftar_soal"), where("materi", "==", genMateri));
-      const snapshot = await getDocs(qSoal);
-      let bankSoal = snapshot.docs.map(d => d.data());
-
-      // 2. Filter berdasarkan tingkat kesulitan yang dipilih host
-      let targetTingkat = [];
-      if (genTingkat === "Mudah") targetTingkat = ["Mudah"];
-      else if (genTingkat === "Sedang") targetTingkat = ["Sedang"];
-      else if (genTingkat === "Sulit") targetTingkat = ["Sulit"];
-      else if (genTingkat === "Mudah-Sedang") targetTingkat = ["Mudah", "Sedang"];
-      else if (genTingkat === "Sedang-Sulit") targetTingkat = ["Sedang", "Sulit"];
-      else if (genTingkat === "Mudah-Sulit") targetTingkat = ["Mudah", "Sulit"];
-
-      bankSoal = bankSoal.filter(soal => targetTingkat.includes(soal.tingkat));
-
-      // 3. Validasi ketersediaan soal
-      if (bankSoal.length < genJumlah) {
-        alert(`Soal tidak cukup! Cuma ada ${bankSoal.length} soal untuk kriteria ini.`);
-        return;
-      }
-
-      // 4. Acak soal (Shuffle) dan potong sesuai jumlah yang diminta
-      bankSoal.sort(() => 0.5 - Math.random());
-      const soalTerpilih = bankSoal.slice(0, parseInt(genJumlah));
-
-      // 5. Buat Room
       const docRef = await addDoc(collection(db, "rooms"), {
         nama_room: `Arena ${Math.floor(Math.random() * 1000)}`,
-        status: "waiting",
-        host: namaPeserta,
-        soal: soalTerpilih
+        status: "setup", // Status awal setup agar tidak muncul di siswa dulu
+        host: namaPeserta
       });
       router.push(`/room/${docRef.id}`);
-
     } catch (error) {
-      alert("Gagal membuat arena. Pastikan database terkoneksi.");
-      console.error(error);
+      alert("Gagal membuat arena.");
     }
   };
 
   return (
-    <main className="min-h-screen p-6 bg-gray-100 text-black">
+    <main className="min-h-screen p-6 bg-[#f4f7fe] text-gray-800 font-sans">
       <div className="max-w-2xl mx-auto space-y-6">
-        
-        <header className="bg-white p-4 rounded-xl shadow flex justify-between items-center">
+        <header className="bg-white p-6 rounded-3xl shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-blue-600">Lobby Petualangan</h1>
-            <p className="text-gray-500">Halo komandan, {namaPeserta}!</p>
+            <h1 className="text-2xl font-black text-indigo-400">Lobby Petualangan</h1>
+            <p className="text-gray-500 font-medium">Halo, {namaPeserta}!</p>
           </div>
+          <button 
+            onClick={buatArenaBaru} 
+            className="bg-indigo-400 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl font-bold active:scale-90 transition-all shadow-[inset_4px_4px_8px_rgba(255,255,255,0.3),4px_4px_8px_rgba(0,0,0,0.15)]"
+          >
+            + Buka Arena
+          </button>
         </header>
 
-        {/* Panel Generate Arena untuk Host */}
-        <div className="bg-blue-50 p-6 rounded-xl shadow border border-blue-100">
-          <h2 className="text-xl font-bold mb-4 text-blue-800">⚙️ Buat Arena Baru</h2>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-bold mb-1">Materi</label>
-              <select value={genMateri} onChange={e => setGenMateri(e.target.value)} className="w-full p-2 rounded border">
-                <option value="Ciri-ciri Bangun Datar">Ciri-ciri Bangun Datar</option>
-                <option value="Luas Bangun Datar">Luas Bangun Datar</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-bold mb-1">Tingkatan</label>
-              <select value={genTingkat} onChange={e => setGenTingkat(e.target.value)} className="w-full p-2 rounded border">
-                <option value="Mudah">Mudah</option>
-                <option value="Sedang">Sedang</option>
-                <option value="Sulit">Sulit</option>
-                <option value="Mudah-Sedang">Mudah & Sedang</option>
-                <option value="Sedang-Sulit">Sedang & Sulit</option>
-                <option value="Mudah-Sulit">Mudah & Sulit</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-bold mb-1">Jumlah Soal</label>
-              <input type="number" min="1" value={genJumlah} onChange={e => setGenJumlah(e.target.value)} className="w-full p-2 rounded border" />
-            </div>
-          </div>
-          <button onClick={generateArena} className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg font-bold shadow-md">
-            + Generate & Buka Arena
-          </button>
-        </div>
-
         <div>
-          <h2 className="text-xl font-bold mb-4">Arena yang Tersedia (Untuk Siswa):</h2>
+          <h2 className="text-xl font-bold mb-4 text-gray-700">Arena yang Terbuka:</h2>
           {rooms.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl shadow text-center text-gray-500">Belum ada arena yang terbuka.</div>
+            <div className="bg-white p-8 rounded-3xl shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] text-center text-gray-400 font-medium">
+              Belum ada arena yang siap dimainkan.
+            </div>
           ) : (
-            <div className="grid gap-4">
+            <div className="grid gap-5">
               {rooms.map((room) => (
-                <div key={room.id} className="bg-white p-4 rounded-xl shadow flex justify-between items-center">
+                <div key={room.id} className="bg-white p-5 rounded-3xl shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] flex justify-between items-center border-2 border-transparent hover:border-indigo-100 transition-all">
                   <div>
-                    <h3 className="font-bold text-lg">{room.nama_room}</h3>
-                    <p className="text-sm text-gray-500">Host: {room.host} | {room.soal?.length || 0} Soal</p>
+                    <h3 className="font-bold text-lg text-gray-800">{room.nama_room}</h3>
+                    <p className="text-sm text-gray-500">Host: {room.host} | Tema: {room.tema}</p>
                   </div>
-                  <button onClick={() => router.push(`/room/${room.id}`)} className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-bold shadow-md">
+                  <button 
+                    onClick={() => router.push(`/room/${room.id}`)} 
+                    className="bg-emerald-400 hover:bg-emerald-500 text-white px-8 py-3 rounded-2xl font-bold active:scale-90 transition-all shadow-[inset_4px_4px_8px_rgba(255,255,255,0.4),4px_4px_8px_rgba(0,0,0,0.15)]"
+                  >
                     JOIN
                   </button>
                 </div>
@@ -136,7 +75,6 @@ export default function Lobby() {
             </div>
           )}
         </div>
-
       </div>
     </main>
   );

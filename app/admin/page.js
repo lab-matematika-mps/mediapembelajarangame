@@ -28,24 +28,29 @@ export default function AdminPage() {
       setStatus("Memproses...");
       const soalArray = JSON.parse(jsonInput);
       
-      if (!Array.isArray(soalArray)) throw new Error("Format JSON harus Array.");
+      if (!Array.isArray(soalArray)) throw new Error("Format JSON harus diawali [ dan diakhiri ].");
 
-      // Simpan setiap soal sebagai dokumen terpisah
-      for (let soal of soalArray) {
+      // Looping untuk memecah bulk JSON dan menyimpannya per soal
+      for (let item of soalArray) {
+        // Mengubah format {A, B, C, D} menjadi array ["Opsi 1", "Opsi 2", ...]
+        const opsiArray = Object.values(item.pilihan); 
+        // Mengambil teks jawaban benar berdasarkan kunci (misal: "C")
+        const jawabanTeks = item.pilihan[item.jawaban]; 
+
         await addDoc(collection(db, "daftar_soal"), {
           materi: materi,
           tingkat: tingkat,
-          pertanyaan: soal.pertanyaan,
-          opsi: soal.opsi,
-          jawabanBenar: soal.jawabanBenar
+          pertanyaan: item.soal, // Mengambil teks dari key "soal"
+          opsi: opsiArray,
+          jawabanBenar: jawabanTeks
         });
       }
 
-      setStatus("✅ Berhasil menyimpan ke bank soal!");
+      setStatus("✅ Berhasil menyimpan semua soal ke bank soal!");
       setJsonInput("");
       muatDataSoal();
     } catch (error) {
-      setStatus(`❌ Gagal: ${error.message}`);
+      setStatus(`❌ Gagal: Pastikan format JSON benar. Error: ${error.message}`);
     }
   };
 
@@ -101,10 +106,10 @@ export default function AdminPage() {
           </div>
           <div className="mb-4">
             <label className="block font-bold mb-2">Paste JSON Soal</label>
-            <textarea rows="5" value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} className="w-full border p-3 rounded font-mono text-sm" placeholder='[{"pertanyaan": "...", "opsi": ["1","2","3","4"], "jawabanBenar": "1"}]'></textarea>
+            <textarea rows="10" value={jsonInput} onChange={(e) => setJsonInput(e.target.value)} className="w-full border p-3 rounded font-mono text-sm bg-gray-50" placeholder="Paste format JSON yang banyak di sini..."></textarea>
           </div>
-          {status && <p className="mb-4 font-bold text-red-500">{status}</p>}
-          <button onClick={simpanSoalBaru} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">Simpan Soal</button>
+          {status && <p className="mb-4 font-bold text-blue-600">{status}</p>}
+          <button onClick={simpanSoalBaru} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg w-full">Simpan Bulk Soal</button>
         </div>
 
         <div className="bg-white p-8 rounded-xl shadow">

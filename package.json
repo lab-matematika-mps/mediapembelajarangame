@@ -6,7 +6,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "lucide-react": "^0.292.0",
+    "lucide-react": "latest",
     "firebase": "^10.0.0",
     "next": "latest",
     "react": "latest",

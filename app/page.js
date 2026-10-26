@@ -22,6 +22,16 @@ export default function Login() {
     router.push("/dashboard");
   };
 
+  // Fungsi untuk mengganti tema sekaligus memutar SFX khususnya
+  const gantiTema = (newTema) => {
+    setTema(newTema);
+    if (musicEnabled) {
+      const sfx = new Audio(`/sfx-${newTema}.mp3`);
+      sfx.volume = volume;
+      sfx.play().catch(() => {});
+    }
+  };
+
   return (
     <main className={`theme-${tema} h-screen flex flex-col justify-between relative overflow-hidden font-sans text-[var(--text-main)] transition-colors duration-1000 select-none`}>
       <style dangerouslySetInnerHTML={{
@@ -38,7 +48,12 @@ export default function Login() {
       `}} />
 
       {/* Komponen Canvas Animasi */}
-      <BackgroundCanvas tema={tema} particlesEnabled={particlesEnabled} />
+      <BackgroundCanvas 
+        tema={tema} 
+        particlesEnabled={particlesEnabled} 
+        musicEnabled={musicEnabled} 
+        volume={volume} 
+      />
 
       {/* SETTINGS BUTTON */}
       <div className="fixed top-4 right-4 z-50">
@@ -81,15 +96,15 @@ export default function Login() {
           <div>
             <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] mb-3 font-semibold">Pilih Dunia Petualangan</p>
             <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
-              <div onClick={() => setTema('galaxy')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'galaxy' ? 'active' : ''}`}>
+              <div onClick={() => gantiTema('galaxy')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'galaxy' ? 'active' : ''}`}>
                 <Rocket size={24} className={tema === 'galaxy' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
                 <span className="font-bold text-xs">Galaksi</span>
               </div>
-              <div onClick={() => setTema('sky')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'sky' ? 'active' : ''}`}>
+              <div onClick={() => gantiTema('sky')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'sky' ? 'active' : ''}`}>
                 <Sun size={24} className={tema === 'sky' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
                 <span className="font-bold text-xs">Langit</span>
               </div>
-              <div onClick={() => setTema('ocean')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'ocean' ? 'active' : ''}`}>
+              <div onClick={() => gantiTema('ocean')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'ocean' ? 'active' : ''}`}>
                 <Waves size={24} className={tema === 'ocean' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
                 <span className="font-bold text-xs">Samudra</span>
               </div>
@@ -122,7 +137,7 @@ export default function Login() {
             </div>
             <div className="space-y-4 text-sm">
               <div className="flex justify-between items-center">
-                <span className="font-medium flex items-center gap-2"><Music size={16}/> Musik</span>
+                <span className="font-medium flex items-center gap-2"><Music size={16}/> Musik & Suara</span>
                 <input type="checkbox" checked={musicEnabled} onChange={() => setMusicEnabled(!musicEnabled)} className="accent-[var(--primary)] cursor-pointer" />
               </div>
               <div className="flex justify-between items-center">

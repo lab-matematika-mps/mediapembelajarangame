@@ -2,23 +2,21 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-// PERHATIKAN: getDoc ditambahkan di sini
-import { doc, onSnapshot, updateDoc, setDoc, deleteDoc, collection, query, orderBy, getDoc, where } from "firebase/firestore";
+// PERHATIKAN: getDocs sudah aku masukkan kembali ke sini
+import { doc, onSnapshot, updateDoc, setDoc, deleteDoc, collection, query, orderBy, getDoc, getDocs, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Trophy, Play, XSquare, Navigation, Gift, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Timer, Flag, Cat, Dog, Rabbit, Bird } from "lucide-react";
+import { Trophy, Play, XSquare, Navigation, Gift, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Timer, Flag, Cat, Dog, Rabbit, Bird, AlertTriangle } from "lucide-react";
 import BackgroundCanvas from "../../../components/BackgroundCanvas";
 
 const GRID_SIZE = 10;
 const ANIMAL_ICONS = [Cat, Dog, Rabbit, Bird];
 
-// 1. DATABASE EMOTICON TEMA (Avatar Karakter)
 const THEME_ICONS = {
   galaxy: ["🚀", "🛸", "👽", "🪐", "☄️", "👨‍🚀", "🛰️", "👾"],
   ocean: ["🐙", "🐬", "🦈", "🐢", "🦀", "🐡", "🦑", "🐳"],
   sky: ["✈️", "🦅", "🎈", "☁️", "🕊️", "🚁", "🪁", "🌈"]
 };
 
-// Fungsi agar 1 nama pemain konsisten dapat 1 emot yang sama (tidak berubah-ubah)
 const getIconForPlayer = (namaPemain, tema) => {
   const icons = THEME_ICONS[tema || "galaxy"] || THEME_ICONS["galaxy"];
   let hash = 0;
@@ -50,7 +48,11 @@ export default function Room() {
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [volume, setVolume] = useState(0.5);
 
-  // Mencegah nilai turun ke 0 saat refresh
+  // --- STATE AFK (AUTO CLOSE) ---
+  const [idleLimit, setIdleLimit] = useState(60000); // Default awal 60 detik (1 menit)
+  const [showIdleWarning, setShowIdleWarning] = useState(false);
+  const [idleCountdown, setIdleCountdown] = useState(10);
+
   const activePlayers = players.filter(p => p.nama !== roomData?.host);
   const mySkor = activePlayers.find(p => p.nama === namaPeserta)?.skor || 0;
 
@@ -64,7 +66,6 @@ export default function Room() {
     const savedVol = localStorage.getItem("bgVolume");
     if (savedVol) setVolume(parseFloat(savedVol));
 
-    // MENDENGARKAN DATA ROOM UTAMA
     const roomRef = doc(db, "rooms", id);
     const unsubRoom = onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -74,7 +75,6 @@ export default function Room() {
       }
     });
 
-    // MENDENGARKAN DATA PEMAIN (Skor & Posisi)
     const unsubPlayers = onSnapshot(query(collection(db, `rooms/${id}/players`), orderBy("skor", "desc")), (snapshot) => {
       setPlayers(snapshot.docs.map(doc => doc.data()));
     });
@@ -82,7 +82,6 @@ export default function Room() {
     return () => { unsubRoom(); unsubPlayers(); };
   }, [id, router]);
 
-  // LOGIK FIX: SPAWN PEMAIN DAN MENCEGAH BUG RESET SKOR & MENTAL KE (0,0)
   useEffect(() => {
     if (!roomData?.host || !namaPeserta) return;
     if (roomData.host !== namaPeserta) {
@@ -91,7 +90,6 @@ export default function Room() {
         const pSnap = await getDoc(playerRef);
         
         if (!pSnap.exists()) {
-          // Cari lokasi acak yang BUKAN tepat di atas kotak harta
           let startX, startY;
           let isSafe = false;
           while (!isSafe) {
@@ -101,38 +99,61 @@ export default function Room() {
               const onTreasure = roomData.soal.some(s => s.x === startX && s.y === startY);
               isSafe = !onTreasure;
             } else {
-              isSafe = true; // Jika game belum mulai, lokasi manapun aman
+              isSafe = true; 
             }
           }
           await setDoc(playerRef, { nama: namaPeserta, skor: 0, x: startX, y: startY });
           setPosisi({ x: startX, y: startY });
         } else {
-          // Memuat posisi terakhir (mengunci agar tidak lompat ke 0,0 saat menjawab)
           const data = pSnap.data();
           setPosisi({ x: data.x, y: data.y });
         }
       };
       initPlayer();
     }
-  }, [roomData?.host, namaPeserta, id]); // Effect ini hanya dijalankan sekali ketika info Host terbaca
+  }, [roomData?.host, namaPeserta, id]); 
 
   const isHost = roomData?.host === namaPeserta;
   const myRank = activePlayers.findIndex(p => p.nama === namaPeserta) + 1;
 
+  // --- LOGIK PERINGATAN AFK ---
   useEffect(() => {
     if (!roomData) return;
-    let idleTimer;
+    let warningTimer;
+    // Timer AFK hanya berjalan ketika menunggu di lobby atau sesudah game selesai
     if (roomData.status === "waiting" || roomData.status === "finished") {
-      idleTimer = setTimeout(async () => {
+      warningTimer = setTimeout(() => {
+        setShowIdleWarning(true);
+        setIdleCountdown(10);
+      }, idleLimit);
+    }
+    return () => { if (warningTimer) clearTimeout(warningTimer); };
+  }, [roomData?.status, idleLimit]);
+
+  // Efek Countdown saat Peringatan AFK muncul
+  useEffect(() => {
+    let interval;
+    if (showIdleWarning && idleCountdown > 0) {
+      interval = setInterval(() => {
+        setIdleCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (showIdleWarning && idleCountdown === 0) {
+      const tutupRoom = async () => {
         if (isHost) {
           try { await deleteDoc(doc(db, "rooms", id)); } catch (e) {}
         }
-        alert("Room tidak aktif selama 1 Menit. Kamu dikeluarkan otomatis (Hemat Server/Rad).");
+        alert("Room ditutup karena tidak ada aktivitas.");
         router.push("/lobby");
-      }, 60000);
+      };
+      tutupRoom();
     }
-    return () => { if (idleTimer) clearTimeout(idleTimer); };
-  }, [roomData?.status, isHost, id, router]);
+    return () => { if (interval) clearInterval(interval); };
+  }, [showIdleWarning, idleCountdown, isHost, id, router]);
+
+  const tambahWaktuAFK = () => {
+    setShowIdleWarning(false);
+    setIdleLimit(300000); // Memperpanjang jadi 5 menit (300.000 ms)
+  };
 
   useEffect(() => {
     if (!roomData || roomData.status !== "playing" || !roomData.startedAt) return;
@@ -199,7 +220,6 @@ export default function Room() {
       if(allSoal.length === 0) return alert("Soal tidak ditemukan untuk materi & tingkat ini!");
 
       const usedCoords = new Set();
-      // Cegah bentrok dengan lokasi spawn pemain yang sudah gabung saat generate harta
       activePlayers.forEach(p => usedCoords.add(`${p.x},${p.y}`)); 
 
       const soalWithData = allSoal.map((soal, index) => {
@@ -226,7 +246,6 @@ export default function Room() {
     const newSoal = [...roomData.soal];
     const tIndex = newSoal.findIndex(s => s.soalIndex === soalAktif.soalIndex);
     if (isBenar) {
-      // Penambahan poin presisi dari skor saat ini di database
       const skorBaru = mySkor + 10;
       await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { skor: skorBaru });
       newSoal[tIndex].isSelesai = true;
@@ -333,6 +352,27 @@ export default function Room() {
         forcePauseMusic={true} 
       />
 
+      {/* --- MODAL PERINGATAN AFK --- */}
+      {showIdleWarning && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="glass-panel p-8 md:p-10 w-full max-w-sm text-center border-t-4 border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)]">
+            <AlertTriangle size={64} className="mx-auto text-rose-500 mb-4 animate-pulse" />
+            <h2 className="text-2xl font-black text-white mb-2 tracking-wide">ARENA SEPI!</h2>
+            <p className="text-gray-300 text-sm font-medium mb-6">
+              Room akan segera ditutup dalam <br/>
+              <span className="text-5xl font-black text-rose-400 drop-shadow-md my-3 block">{idleCountdown}</span>
+              detik untuk menghemat server.
+            </p>
+            <button 
+              onClick={tambahWaktuAFK}
+              className="w-full py-4 rounded-xl font-black text-base bg-rose-500 text-white hover:bg-rose-400 active:scale-95 transition-all shadow-[0_0_15px_rgba(244,63,94,0.4)]"
+            >
+              SAYA MASIH DI SINI! (+5 Menit)
+            </button>
+          </div>
+        </div>
+      )}
+
       {roomData.status === "playing" && timeElapsed < 4 && (
         <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">
           <span className="text-[150px] md:text-[200px] font-black text-gradient drop-shadow-[0_0_50px_var(--primary)] animate-ping">
@@ -378,7 +418,6 @@ export default function Room() {
               </div>
             ))}
             
-            {/* AVATAR EMOTICON PEMAIN */}
             {activePlayers.map((p, idx) => (
               <div key={idx} className="absolute w-[10%] h-[10%] flex items-center justify-center transition-all duration-300 z-20" style={{ left: `${p.x * 10}%`, top: `${p.y * 10}%` }}>
                 <div className="relative flex flex-col items-center">

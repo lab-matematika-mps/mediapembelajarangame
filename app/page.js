@@ -1,38 +1,29 @@
+// lab-matematika-mps/mediapembelajarangame/app/page.js
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Rocket, Sun, Waves, Settings, X, Music, Volume2, Sparkles, User, GraduationCap } from "lucide-react";
+import { Rocket, Sun, Waves, Settings, X, Music, Volume2, Sparkles, User, Calculator } from "lucide-react";
 
 export default function Login() {
-  // --- STATE UTAMA ---
   const [nama, setNama] = useState("");
-  const [tema, setTema] = useState("galaxy"); // galaxy | sky | ocean
+  const [tema, setTema] = useState("galaxy");
   const router = useRouter();
 
-  // --- STATE SETTINGS ---
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [particlesEnabled, setParticlesEnabled] = useState(true);
   const [volume, setVolume] = useState(0.5);
 
   const canvasRef = useRef(null);
-  const audioRef = useRef(null);
 
-  // --- FUNGSI LOGIN (TIDAK DIUBAH FUNGSINYA) ---
-  const masukLobby = () => {
-    if (!nama) return alert("Halo, Siapa namamu? Silakan masukkan nama terlebih dahulu!");
+  const masukDashboard = () => {
+    if (!nama.trim()) return alert("Halo! Silakan masukkan nama kamu terlebih dahulu!");
     localStorage.setItem("nama_peserta", nama);
     localStorage.setItem("tema_bg", tema);
-    
-    // Play Click Sound jika diizinkan
-    if (musicEnabled && audioRef.current) {
-      audioRef.current.play().catch(e => console.log("Audio diblokir browser"));
-    }
-    
-    router.push("/lobby");
+    router.push("/dashboard");
   };
 
-  // --- ENGINE ANIMASI CANVAS (PARTIKEL) ---
+  // --- ENGINE CANVAS TEMA ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -165,186 +156,127 @@ export default function Login() {
     };
   }, [tema, particlesEnabled]);
 
-  // Audio setup (menggunakan file dummy, pastikan kamu punya file .mp3 di folder public nantinya jika mau bunyi asli)
-  useEffect(() => {
-    audioRef.current = new Audio('/sfx-click.mp3'); 
-  }, []);
-
   return (
-    <main className={`theme-${tema} min-h-screen flex flex-col relative overflow-hidden font-sans text-[var(--text-main)] transition-colors duration-1000 ease-in-out`}>
-      
-      {/* CSS VARIABLES INJECTION */}
+    <main className={`theme-${tema} h-screen flex flex-col justify-between relative overflow-hidden font-sans text-[var(--text-main)] transition-colors duration-1000 select-none`}>
       <style dangerouslySetInnerHTML={{
         __html: `
-        :root {
-          --font-main: 'Space Grotesk', sans-serif;
-        }
-        .theme-galaxy {
-          --bg-top: #0a0a1a; --bg-bottom: #1a0b2e; --primary: #00f3ff; --primary-hover: #00d0ff; --secondary: #b900ff;
-          --text-main: #ffffff; --text-muted: #a0a0b8; --glass-bg: rgba(20, 20, 40, 0.4); --glass-border: rgba(0, 243, 255, 0.2);
-          --glow-shadow: 0 0 20px rgba(0, 243, 255, 0.5); background: linear-gradient(135deg, var(--bg-top), var(--bg-bottom));
-        }
-        .theme-sky {
-          --bg-top: #ffe5d9; --bg-bottom: #ffcad4; --primary: #f28482; --primary-hover: #f0716f; --secondary: #84a59d;
-          --text-main: #2b2d42; --text-muted: #5c677d; --glass-bg: rgba(255, 255, 255, 0.5); --glass-border: rgba(242, 132, 130, 0.3);
-          --glow-shadow: 0 10px 25px rgba(242, 132, 130, 0.4); background: linear-gradient(135deg, var(--bg-top), var(--bg-bottom));
-        }
-        .theme-ocean {
-          --bg-top: #001220; --bg-bottom: #004d7a; --primary: #00d4ff; --primary-hover: #00b0ff; --secondary: #00ff88;
-          --text-main: #ffffff; --text-muted: #b3e5fc; --glass-bg: rgba(0, 30, 60, 0.4); --glass-border: rgba(0, 212, 255, 0.3);
-          --glow-shadow: 0 0 20px rgba(0, 212, 255, 0.5); background: linear-gradient(135deg, var(--bg-top), var(--bg-bottom));
-        }
-        .glass-panel {
-          background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border);
-          border-radius: 1.5rem; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); transition: all 0.4s ease;
-        }
-        .glass-btn {
-          background: var(--glass-bg); backdrop-filter: blur(8px); border: 1px solid var(--glass-border);
-          color: var(--text-main); transition: all 0.3s ease;
-        }
-        .glass-btn:hover {
-          transform: translateY(-3px) scale(1.02); box-shadow: var(--glow-shadow); border-color: var(--primary);
-        }
+        :root { --font-main: 'Space Grotesk', sans-serif; }
+        .theme-galaxy { --bg-top: #0a0a1a; --bg-bottom: #1a0b2e; --primary: #00f3ff; --secondary: #b900ff; --text-main: #ffffff; --text-muted: #a0a0b8; --glass-bg: rgba(20, 20, 40, 0.45); --glass-border: rgba(0, 243, 255, 0.2); --glow-shadow: 0 0 20px rgba(0, 243, 255, 0.4); background: linear-gradient(135deg, var(--bg-top), var(--bg-bottom)); }
+        .theme-sky { --bg-top: #ffe5d9; --bg-bottom: #ffcad4; --primary: #f28482; --secondary: #84a59d; --text-main: #2b2d42; --text-muted: #5c677d; --glass-bg: rgba(255, 255, 255, 0.55); --glass-border: rgba(242, 132, 130, 0.3); --glow-shadow: 0 10px 25px rgba(242, 132, 130, 0.4); background: linear-gradient(135deg, var(--bg-top), var(--bg-bottom)); }
+        .theme-ocean { --bg-top: #001220; --bg-bottom: #004d7a; --primary: #00d4ff; --secondary: #00ff88; --text-main: #ffffff; --text-muted: #b3e5fc; --glass-bg: rgba(0, 30, 60, 0.45); --glass-border: rgba(0, 212, 255, 0.3); --glow-shadow: 0 0 20px rgba(0, 212, 255, 0.4); background: linear-gradient(135deg, var(--bg-top), var(--bg-bottom)); }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); border-radius: 1.25rem; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); }
+        .glass-btn { background: var(--glass-bg); backdrop-filter: blur(8px); border: 1px solid var(--glass-border); color: var(--text-main); transition: all 0.3s ease; }
+        .glass-btn:hover { transform: translateY(-2px) scale(1.02); box-shadow: var(--glow-shadow); border-color: var(--primary); }
         .theme-card { cursor: pointer; border: 2px solid transparent; }
-        .theme-card.active { border-color: var(--primary); box-shadow: var(--glow-shadow); transform: scale(1.05); }
+        .theme-card.active { border-color: var(--primary); box-shadow: var(--glow-shadow); transform: scale(1.03); }
         .text-gradient { background: linear-gradient(to right, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .pulse-slow { animation: pulseGlow 2.5s infinite; }
-        @keyframes pulseGlow {
-          0% { box-shadow: 0 0 10px var(--primary); transform: scale(1); }
-          50% { box-shadow: 0 0 25px var(--primary); transform: scale(1.02); }
-          100% { box-shadow: 0 0 10px var(--primary); transform: scale(1); }
-        }
-        .float-anim { animation: floating 4s ease-in-out infinite; }
-        @keyframes floating { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
       `}} />
 
-      {/* CANVAS BACKGROUND */}
       <canvas ref={canvasRef} className="fixed inset-0 w-full h-full z-0 pointer-events-none"></canvas>
 
-      {/* TOMBOL PENGATURAN (POJOK KANAN ATAS) */}
+      {/* SETTINGS BUTTON */}
       <div className="fixed top-4 right-4 z-50">
-        <button onClick={() => setIsSettingsOpen(true)} className="glass-btn p-3 rounded-full flex items-center justify-center w-12 h-12">
-          <Settings size={22} className="text-[var(--primary)]" />
+        <button onClick={() => setIsSettingsOpen(true)} className="glass-btn p-2.5 rounded-full flex items-center justify-center w-11 h-11">
+          <Settings size={20} className="text-[var(--primary)]" />
         </button>
       </div>
 
-      {/* KONTEN UTAMA */}
-      <div className="flex-1 flex flex-col items-center justify-center container mx-auto px-4 py-8 relative z-10">
-        
-        <div className="glass-panel p-8 md:p-12 w-full max-w-3xl text-center float-anim mt-10">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="inline-block p-4 rounded-full bg-white/5 mb-4 border border-white/10">
-              <GraduationCap size={48} strokeWidth={1.5} className="text-[var(--primary)]" />
+      {/* MAIN CONTAINER (COMPACT & FIT SCREEN) */}
+      <div className="flex-1 flex flex-col items-center justify-center container mx-auto px-4 z-10 py-4">
+        <div className="glass-panel p-6 md:p-8 w-full max-w-xl text-center space-y-6">
+          
+          <div>
+            <div className="inline-block p-3 rounded-full bg-white/5 mb-2 border border-white/10">
+              <Calculator size={36} className="text-[var(--primary)]" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight">
-              Mugeb <span className="text-gradient">TKA</span> Learning Center
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight">
+              Mugeb <span className="text-gradient">Math Quest</span>
             </h1>
-            <p className="text-lg text-[var(--text-muted)] font-light">
-              Berlatih TKA dengan pengalaman belajar yang menyenangkan.
+            <p className="text-sm text-[var(--text-muted)] mt-1 font-medium">
+              Petualangan Belajar Matematika yang Seru & Interaktif!
             </p>
           </div>
 
-          {/* Input Nama */}
-          <div className="mb-8 w-full max-w-md mx-auto">
+          {/* INPUT NAMA */}
+          <div className="w-full max-w-sm mx-auto">
             <div className="relative">
-              <User size={20} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" />
+              <User size={18} className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" />
               <input 
                 type="text" 
                 value={nama}
                 onChange={(e) => setNama(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && masukLobby()}
-                className="w-full py-4 pl-12 pr-4 rounded-xl text-lg text-center font-medium bg-white/5 border border-[var(--glass-border)] text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] focus:shadow-[0_0_10px_rgba(0,243,255,0.2)] transition-all" 
-                placeholder="Masukkan nama komandan..." 
+                onKeyDown={(e) => e.key === 'Enter' && masukDashboard()}
+                className="w-full py-3 pl-11 pr-4 rounded-xl text-base text-center font-medium bg-white/5 border border-[var(--glass-border)] text-[var(--text-main)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--primary)] transition-all" 
+                placeholder="Masukkan nama petualang..." 
                 autoComplete="off" 
               />
             </div>
           </div>
 
-          {/* Pilihan Tema */}
-          <div className="mb-10">
-            <p className="text-sm uppercase tracking-widest text-[var(--text-muted)] mb-4 font-semibold">Pilih Tema Perjalananmu</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              
-              <div onClick={() => setTema('galaxy')} className={`theme-card glass-btn p-4 rounded-xl flex flex-col items-center gap-2 ${tema === 'galaxy' ? 'active' : ''}`}>
-                <Rocket size={32} className={tema === 'galaxy' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
-                <span className="font-medium">Galaksi</span>
+          {/* TEMA SELECTION */}
+          <div>
+            <p className="text-xs uppercase tracking-widest text-[var(--text-muted)] mb-3 font-semibold">Pilih Dunia Petualangan</p>
+            <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
+              <div onClick={() => setTema('galaxy')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'galaxy' ? 'active' : ''}`}>
+                <Rocket size={24} className={tema === 'galaxy' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
+                <span className="font-bold text-xs">Galaksi</span>
               </div>
-              
-              <div onClick={() => setTema('sky')} className={`theme-card glass-btn p-4 rounded-xl flex flex-col items-center gap-2 ${tema === 'sky' ? 'active' : ''}`}>
-                <Sun size={32} className={tema === 'sky' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
-                <span className="font-medium">Langit</span>
+              <div onClick={() => setTema('sky')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'sky' ? 'active' : ''}`}>
+                <Sun size={24} className={tema === 'sky' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
+                <span className="font-bold text-xs">Langit</span>
               </div>
-              
-              <div onClick={() => setTema('ocean')} className={`theme-card glass-btn p-4 rounded-xl flex flex-col items-center gap-2 ${tema === 'ocean' ? 'active' : ''}`}>
-                <Waves size={32} className={tema === 'ocean' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
-                <span className="font-medium">Samudra</span>
+              <div onClick={() => setTema('ocean')} className={`theme-card glass-btn p-3 rounded-xl flex flex-col items-center gap-1 ${tema === 'ocean' ? 'active' : ''}`}>
+                <Waves size={24} className={tema === 'ocean' ? "text-[var(--primary)]" : "text-[var(--text-muted)]"} />
+                <span className="font-bold text-xs">Samudra</span>
               </div>
-
             </div>
           </div>
 
-          {/* Tombol Mulai */}
+          {/* START BUTTON */}
           <button 
-            onClick={masukLobby} 
-            className="pulse-slow w-full md:w-auto px-10 py-4 rounded-full text-xl flex items-center justify-center gap-3 mx-auto font-bold border-none transition-transform hover:scale-105"
+            onClick={masukDashboard} 
+            className="w-full max-w-xs py-3.5 rounded-full text-base flex items-center justify-center gap-2 mx-auto font-black border-none transition-transform hover:scale-105 shadow-[var(--glow-shadow)]"
             style={{ background: 'var(--primary)', color: tema === 'sky' ? '#fff' : '#000' }}
           >
-            <Rocket size={24} /> Mulai Belajar
+            <Rocket size={20} /> Mulai Petualangan
           </button>
         </div>
       </div>
 
-      {/* FOOTER */}
-      <footer className="w-full text-center p-6 border-t border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-md z-20 mt-auto">
+      {/* FOOTER TRANSPARAN TANPA GLASS EFFECT */}
+      <footer className="w-full text-center py-3 bg-transparent z-20">
         <div className="container mx-auto">
-          <p className="font-bold text-sm md:text-base text-gradient mb-1">Berakhlak Mulia dan Berprestasi</p>
-          <p className="text-xs text-[var(--text-muted)] mb-2">Website dibuat khusus sebagai media latihan TKA.</p>
-          <p className="text-xs text-[var(--text-muted)]">&copy; 2026 Mugeb Primary School (SD Muhammadiyah 1 GKB)</p>
+          <p className="font-bold text-xs md:text-sm text-gradient">Berakhlak Mulia dan Berprestasi</p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">&copy; 2026 Mugeb Primary School (SD Muhammadiyah 1 GKB)</p>
         </div>
       </footer>
 
       {/* MODAL SETTINGS */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center transition-opacity">
-          <div className="glass-panel w-11/12 max-w-sm p-6 transform scale-100 transition-transform">
-            
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center">
+          <div className="glass-panel w-11/12 max-w-sm p-6">
             <div className="flex justify-between items-center mb-6 border-b border-white/10 pb-3">
-              <h3 className="text-xl font-bold flex items-center gap-2"><Settings size={20}/> Pengaturan</h3>
-              <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-white"><X size={24}/></button>
+              <h3 className="text-lg font-bold flex items-center gap-2"><Settings size={18}/> Pengaturan</h3>
+              <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-white"><X size={20}/></button>
             </div>
-            
-            <div className="space-y-6">
-              {/* Toggle Musik */}
+            <div className="space-y-4 text-sm">
               <div className="flex justify-between items-center">
-                <span className="font-medium flex items-center gap-2"><Music size={18}/> Suara & Musik</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={musicEnabled} onChange={() => setMusicEnabled(!musicEnabled)} />
-                  <div className={`w-11 h-6 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${musicEnabled ? 'bg-[var(--primary)]' : ''}`}></div>
-                </label>
+                <span className="font-medium flex items-center gap-2"><Music size={16}/> Musik</span>
+                <input type="checkbox" checked={musicEnabled} onChange={() => setMusicEnabled(!musicEnabled)} className="accent-[var(--primary)] cursor-pointer" />
               </div>
-
-              {/* Slider Volume */}
               <div className="flex justify-between items-center">
-                <span className="font-medium flex items-center gap-2"><Volume2 size={18}/> Volume</span>
+                <span className="font-medium flex items-center gap-2"><Volume2 size={16}/> Volume</span>
                 <input type="range" min="0" max="1" step="0.1" value={volume} onChange={(e) => setVolume(e.target.value)} className="w-24 accent-[var(--primary)] cursor-pointer" />
               </div>
-              
-              {/* Toggle Partikel */}
               <div className="flex justify-between items-center">
-                <span className="font-medium flex items-center gap-2"><Sparkles size={18}/> Efek Animasi</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={particlesEnabled} onChange={() => setParticlesEnabled(!particlesEnabled)} />
-                  <div className={`w-11 h-6 bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all ${particlesEnabled ? 'bg-[var(--primary)]' : ''}`}></div>
-                </label>
+                <span className="font-medium flex items-center gap-2"><Sparkles size={16}/> Efek Animasi</span>
+                <input type="checkbox" checked={particlesEnabled} onChange={() => setParticlesEnabled(!particlesEnabled)} className="accent-[var(--primary)] cursor-pointer" />
               </div>
             </div>
-
-            <button onClick={() => setIsSettingsOpen(false)} className="w-full mt-8 py-3 rounded-lg font-bold text-black" style={{ background: 'var(--primary)' }}>Simpan</button>
+            <button onClick={() => setIsSettingsOpen(false)} className="w-full mt-6 py-2.5 rounded-lg font-bold text-black text-sm" style={{ background: 'var(--primary)' }}>Simpan</button>
           </div>
         </div>
       )}
-
     </main>
   );
 }

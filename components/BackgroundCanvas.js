@@ -5,44 +5,48 @@ export default function BackgroundCanvas({
   tema = "galaxy",
   particlesEnabled = true,
   musicEnabled = false,
-  volume = 0.5
+  volume = 0.5,
+  forcePauseMusic = false // Tambahan agar bisa mematikan musik di dalam room/game
 }) {
   const canvasRef = useRef(null);
-  const bgmRef = useRef(null);
 
-  // --- 1. ENGINE AUDIO (BGM & SFX) ---
+  // --- 1. ENGINE AUDIO GLOBAL (BGM & SFX) ---
   useEffect(() => {
     if (typeof window !== "undefined") {
-      if (!bgmRef.current) {
-        bgmRef.current = new Audio("/background-music.mp3");
-        bgmRef.current.loop = true;
+      // Gunakan window.bgMusic agar tidak terputus saat pindah halaman (Next.js)
+      if (!window.bgMusic) {
+        window.bgMusic = new Audio("/background-music.mp3");
+        window.bgMusic.loop = true;
       }
 
-      bgmRef.current.volume = volume;
+      window.bgMusic.volume = volume;
 
-      if (musicEnabled) {
-        // Promise catch agar tidak error jika browser memblokir autoplay
-        bgmRef.current.play().catch(e => console.log("Autoplay butuh interaksi user:", e));
+      if (musicEnabled && !forcePauseMusic) {
+        window.bgMusic.play().catch(e => console.log("Autoplay ditahan browser, butuh interaksi user."));
       } else {
-        bgmRef.current.pause();
+        window.bgMusic.pause();
       }
     }
-  }, [musicEnabled, volume]);
+  }, [musicEnabled, volume, forcePauseMusic]);
 
   // Efek Suara (SFX) Global saat klik tombol
   useEffect(() => {
     const handleGlobalClick = (e) => {
-      if (musicEnabled && e.target.closest("button, .glass-btn, .theme-card")) {
-        const sfx = new Audio("/sfx-click.mp3");
-        sfx.volume = volume;
-        sfx.play().catch(() => console.log("SFX ditahan browser"));
+      // Cek apakah klik berasal dari tombol DAN tombol itu BUKAN kartu tema
+      if (musicEnabled && e.target.closest("button, .glass-btn")) {
+        if (!e.target.closest(".theme-card")) {
+          const sfx = new Audio("/sfx-click.mp3");
+          sfx.volume = volume;
+          sfx.play().catch(() => {});
+        }
       }
     };
     window.addEventListener("click", handleGlobalClick);
     return () => window.removeEventListener("click", handleGlobalClick);
   }, [musicEnabled, volume]);
 
-  // --- 2. ENGINE VISUAL (PARTIKEL) ---
+  // --- 2. ENGINE VISUAL (PARTIKEL TEMA) ---
+  // (Kode kanvas ini sudah benar, saya tuliskan ulang secara utuh)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -73,76 +77,6 @@ export default function BackgroundCanvas({
       initParticles();
     };
 
-    const drawGalaxy = (p, w, h) => {
-      if (p.type === "star") {
-        p.alpha += p.alphaChange;
-        if (p.alpha <= 0 || p.alpha >= 1) p.alphaChange *= -1;
-        ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(p.alpha)})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (p.type === "comet") {
-        p.x += p.speedX; p.y += p.speedY;
-        if (p.x > w + 100 || p.x < -100 || p.y > h + 100) { p.x = Math.random() * w; p.y = -50; }
-        const gradient = ctx.createLinearGradient(p.x, p.y, p.x - p.speedX * 10, p.y - p.speedY * 10);
-        gradient.addColorStop(0, `rgba(0, 243, 255, ${p.alpha})`);
-        gradient.addColorStop(1, "rgba(0, 243, 255, 0)");
-        ctx.strokeStyle = gradient;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - p.speedX * 10, p.y - p.speedY * 10);
-        ctx.stroke();
-      }
-    };
-
-    const drawSky = (p, w, h) => {
-      if (p.type === "cloud") {
-        p.x += p.speed;
-        if (p.x > w + p.w) p.x = -p.w;
-        ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
-        ctx.beginPath();
-        // Fallback aman untuk browser yang tidak dukung roundRect
-        if (ctx.roundRect) ctx.roundRect(p.x, p.y, p.w, p.h, p.h / 2);
-        else ctx.rect(p.x, p.y, p.w, p.h);
-        ctx.fill();
-      } else if (p.type === "leaf") {
-        p.y += p.speedY; p.angle += p.angleSpeed; p.x += Math.sin(p.angle) * 1;
-        if (p.y > h + 10) { p.y = -10; p.x = Math.random() * w; }
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.angle);
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = 0.6;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, p.size, p.size / 2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    };
-
-    const drawOcean = (p, w, h) => {
-      if (p.type === "bubble") {
-        p.y += p.speedY; p.wobble += p.wobbleSpeed; p.x += Math.sin(p.wobble) * 0.5;
-        if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
-        ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (p.type === "fish") {
-        p.x += p.speedX; p.wobble += 0.05; p.y += Math.sin(p.wobble) * 0.5;
-        if (p.x < -50) { p.x = w + 50; p.y = Math.random() * h * 0.8 + h * 0.1; }
-        ctx.fillStyle = `rgba(0, 0, 0, 0.15)`;
-        ctx.beginPath();
-        ctx.ellipse(p.x, p.y, p.size, p.size / 3, 0, 0, Math.PI * 2);
-        ctx.moveTo(p.x + p.size * 0.8, p.y);
-        ctx.lineTo(p.x + p.size * 1.5, p.y - p.size / 2);
-        ctx.lineTo(p.x + p.size * 1.5, p.y + p.size / 2);
-        ctx.fill();
-      }
-    };
-
     const animate = () => {
       animationId = requestAnimationFrame(animate);
       if (!particlesEnabled) {
@@ -151,9 +85,16 @@ export default function BackgroundCanvas({
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       particles.forEach((p) => {
-        if (tema === "galaxy") drawGalaxy(p, canvas.width, canvas.height);
-        else if (tema === "sky") drawSky(p, canvas.width, canvas.height);
-        else if (tema === "ocean") drawOcean(p, canvas.width, canvas.height);
+        if (tema === "galaxy") {
+          if (p.type === "star") { p.alpha += p.alphaChange; if (p.alpha <= 0 || p.alpha >= 1) p.alphaChange *= -1; ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(p.alpha)})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
+          else if (p.type === "comet") { p.x += p.speedX; p.y += p.speedY; if (p.x > canvas.width + 100 || p.x < -100 || p.y > canvas.height + 100) { p.x = Math.random() * canvas.width; p.y = -50; } const gradient = ctx.createLinearGradient(p.x, p.y, p.x - p.speedX * 10, p.y - p.speedY * 10); gradient.addColorStop(0, `rgba(0, 243, 255, ${p.alpha})`); gradient.addColorStop(1, "rgba(0, 243, 255, 0)"); ctx.strokeStyle = gradient; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.speedX * 10, p.y - p.speedY * 10); ctx.stroke(); }
+        } else if (tema === "sky") {
+          if (p.type === "cloud") { p.x += p.speed; if (p.x > canvas.width + p.w) p.x = -p.w; ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(p.x, p.y, p.w, p.h, p.h / 2); else ctx.rect(p.x, p.y, p.w, p.h); ctx.fill(); }
+          else if (p.type === "leaf") { p.y += p.speedY; p.angle += p.angleSpeed; p.x += Math.sin(p.angle) * 1; if (p.y > canvas.height + 10) { p.y = -10; p.x = Math.random() * canvas.width; } ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle); ctx.fillStyle = p.color; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.ellipse(0, 0, p.size, p.size / 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+        } else if (tema === "ocean") {
+          if (p.type === "bubble") { p.y += p.speedY; p.wobble += p.wobbleSpeed; p.x += Math.sin(p.wobble) * 0.5; if (p.y < -10) { p.y = canvas.height + 10; p.x = Math.random() * canvas.width; } ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke(); }
+          else if (p.type === "fish") { p.x += p.speedX; p.wobble += 0.05; p.y += Math.sin(p.wobble) * 0.5; if (p.x < -50) { p.x = canvas.width + 50; p.y = Math.random() * canvas.height * 0.8 + canvas.height * 0.1; } ctx.fillStyle = `rgba(0, 0, 0, 0.15)`; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.size, p.size / 3, 0, 0, Math.PI * 2); ctx.moveTo(p.x + p.size * 0.8, p.y); ctx.lineTo(p.x + p.size * 1.5, p.y - p.size / 2); ctx.lineTo(p.x + p.size * 1.5, p.y + p.size / 2); ctx.fill(); }
+        }
       });
     };
 

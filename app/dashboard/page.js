@@ -3,12 +3,18 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, Gamepad2, Swords, Shapes, Square, X, LogOut, Sparkles } from "lucide-react";
+import BackgroundCanvas from "../../components/BackgroundCanvas"; // Tambahan
 
 export default function Dashboard() {
   const [namaPeserta, setNamaPeserta] = useState("");
   const [temaBg, setTemaBg] = useState("galaxy");
   const [modalMateri, setModalMateri] = useState(false);
   const [modalBarak, setModalBarak] = useState(false);
+  
+  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [particlesEnabled, setParticlesEnabled] = useState(true);
+  const [volume, setVolume] = useState(0.5);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -17,6 +23,12 @@ export default function Dashboard() {
     if (!nama) return router.push("/");
     setNamaPeserta(nama);
     setTemaBg(tema);
+
+    // Ambil settingan audio dan partikel
+    setMusicEnabled(localStorage.getItem("musicEnabled") === "true");
+    setParticlesEnabled(localStorage.getItem("particlesEnabled") !== "false");
+    const savedVol = localStorage.getItem("bgVolume");
+    if (savedVol) setVolume(parseFloat(savedVol));
   }, [router]);
 
   return (
@@ -32,8 +44,16 @@ export default function Dashboard() {
         .text-gradient { background: linear-gradient(to right, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
       `}} />
 
+      {/* Terhubung ke Background & Musik */}
+      <BackgroundCanvas 
+        tema={temaBg} 
+        particlesEnabled={particlesEnabled} 
+        musicEnabled={musicEnabled} 
+        volume={volume} 
+      />
+
       {/* HEADER */}
-      <header className="glass-panel p-5 flex justify-between items-center max-w-4xl mx-auto w-full z-10">
+      <header className="glass-panel p-5 flex justify-between items-center max-w-4xl mx-auto w-full z-10 relative">
         <div>
           <h1 className="text-xl font-black text-gradient">Dashboard Petualangan</h1>
           <p className="text-xs text-[var(--text-muted)] font-medium">Selamat datang, <span className="font-bold text-[var(--primary)]">{namaPeserta}</span>!</p>
@@ -44,8 +64,7 @@ export default function Dashboard() {
       </header>
 
       {/* MENU UTAMA DASHBOARD */}
-      <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6 my-auto z-10 py-8">
-        {/* KARTU 1: MATERI PELAJARAN */}
+      <div className="max-w-4xl mx-auto w-full grid grid-cols-1 md:grid-cols-3 gap-6 my-auto z-10 py-8 relative">
         <div onClick={() => setModalMateri(true)} className="glass-btn p-8 rounded-3xl flex flex-col items-center text-center cursor-pointer group">
           <div className="w-20 h-20 rounded-2xl bg-[var(--primary)]/20 flex items-center justify-center mb-5 border border-[var(--primary)]/40 group-hover:scale-110 transition-transform">
             <BookOpen size={40} className="text-[var(--primary)]" />
@@ -54,7 +73,6 @@ export default function Dashboard() {
           <p className="text-xs text-[var(--text-muted)] font-medium">Pelajari rangkuman konsep & ciri bangun datar</p>
         </div>
 
-        {/* KARTU 2: ARENA (ONLINE) */}
         <div onClick={() => router.push("/lobby")} className="glass-btn p-8 rounded-3xl flex flex-col items-center text-center cursor-pointer group border-2 border-[var(--primary)]/50 shadow-[var(--glow-shadow)]">
           <div className="w-20 h-20 rounded-2xl bg-[var(--primary)]/30 flex items-center justify-center mb-5 border border-[var(--primary)] group-hover:scale-110 transition-transform">
             <Gamepad2 size={40} className="text-[var(--primary)]" />
@@ -63,7 +81,6 @@ export default function Dashboard() {
           <p className="text-xs text-[var(--text-muted)] font-medium">Bertanding real-time bersama teman sekelas</p>
         </div>
 
-        {/* KARTU 3: BARAK (OFFLINE) */}
         <div onClick={() => setModalBarak(true)} className="glass-btn p-8 rounded-3xl flex flex-col items-center text-center cursor-pointer group">
           <div className="w-20 h-20 rounded-2xl bg-[var(--secondary)]/20 flex items-center justify-center mb-5 border border-[var(--secondary)]/40 group-hover:scale-110 transition-transform">
             <Swords size={40} className="text-[var(--secondary)]" />
@@ -74,7 +91,7 @@ export default function Dashboard() {
       </div>
 
       {/* FOOTER TRANSPARAN */}
-      <footer className="w-full text-center py-3 bg-transparent z-10">
+      <footer className="w-full text-center py-3 bg-transparent z-10 relative">
         <p className="font-bold text-xs text-gradient">Berakhlak Mulia dan Berprestasi</p>
         <p className="text-[10px] text-[var(--text-muted)] mt-0.5">&copy; 2026 Mugeb Primary School (SD Muhammadiyah 1 GKB)</p>
       </footer>
@@ -106,7 +123,7 @@ export default function Dashboard() {
             <button onClick={() => setModalBarak(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={20}/></button>
             <h3 className="text-xl font-black mb-6 text-gradient flex items-center gap-2"><Swords size={22}/> Mode Duel Offline</h3>
             <div className="space-y-4">
-              <div onClick={() => router.push("/barak/tarik-tambang")} className="glass-btn p-4 rounded-xl flex items-center gap-4 cursor-pointer border-l-4 border-l-[var(--primary)]">
+              <div onClick={() => router.push("/barak/tug-of-war")} className="glass-btn p-4 rounded-xl flex items-center gap-4 cursor-pointer border-l-4 border-l-[var(--primary)]">
                 <Swords className="text-[var(--primary)]" size={28} />
                 <div className="text-left"><h4 className="font-bold text-sm">Tarik Tambang Matematika</h4><p className="text-xs text-[var(--text-muted)]">2 Player 1 Layar - Cepat & Tepat</p></div>
               </div>

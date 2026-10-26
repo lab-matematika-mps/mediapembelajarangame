@@ -2,7 +2,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, onSnapshot, updateDoc, setDoc, deleteDoc, collection, query, orderBy, getDocs, where } from "firebase/firestore";
+// PERHATIKAN: getDoc ditambahkan di sini
+import { doc, onSnapshot, updateDoc, setDoc, deleteDoc, collection, query, orderBy, getDoc, where } from "firebase/firestore";
 import { db } from "../../../firebase";
 import { Trophy, Play, XSquare, Navigation, Gift, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Timer, Flag, Cat, Dog, Rabbit, Bird } from "lucide-react";
 import BackgroundCanvas from "../../../components/BackgroundCanvas";
@@ -10,13 +11,29 @@ import BackgroundCanvas from "../../../components/BackgroundCanvas";
 const GRID_SIZE = 10;
 const ANIMAL_ICONS = [Cat, Dog, Rabbit, Bird];
 
+// 1. DATABASE EMOTICON TEMA (Avatar Karakter)
+const THEME_ICONS = {
+  galaxy: ["🚀", "🛸", "👽", "🪐", "☄️", "👨‍🚀", "🛰️", "👾"],
+  ocean: ["🐙", "🐬", "🦈", "🐢", "🦀", "🐡", "🦑", "🐳"],
+  sky: ["✈️", "🦅", "🎈", "☁️", "🕊️", "🚁", "🪁", "🌈"]
+};
+
+// Fungsi agar 1 nama pemain konsisten dapat 1 emot yang sama (tidak berubah-ubah)
+const getIconForPlayer = (namaPemain, tema) => {
+  const icons = THEME_ICONS[tema || "galaxy"] || THEME_ICONS["galaxy"];
+  let hash = 0;
+  for (let i = 0; i < namaPemain.length; i++) {
+    hash = namaPemain.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return icons[Math.abs(hash) % icons.length];
+};
+
 export default function Room() {
   const { id } = useParams();
   const router = useRouter();
   
   const [roomData, setRoomData] = useState(null);
   const [namaPeserta, setNamaPeserta] = useState("");
-  const [skor, setSkor] = useState(0);
   const [players, setPlayers] = useState([]);
   
   const [posisi, setPosisi] = useState({ x: 0, y: 0 });
@@ -33,6 +50,10 @@ export default function Room() {
   const [musicEnabled, setMusicEnabled] = useState(false);
   const [volume, setVolume] = useState(0.5);
 
+  // Mencegah nilai turun ke 0 saat refresh
+  const activePlayers = players.filter(p => p.nama !== roomData?.host);
+  const mySkor = activePlayers.find(p => p.nama === namaPeserta)?.skor || 0;
+
   useEffect(() => {
     const nama = localStorage.getItem("nama_peserta");
     if (!nama) return router.push("/");
@@ -43,22 +64,17 @@ export default function Room() {
     const savedVol = localStorage.getItem("bgVolume");
     if (savedVol) setVolume(parseFloat(savedVol));
 
-    // Menghapus window.bgMusic.pause() yang sebelumnya ada disini karena BackgroundCanvas akan mengaturnya.
-
+    // MENDENGARKAN DATA ROOM UTAMA
     const roomRef = doc(db, "rooms", id);
     const unsubRoom = onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data();
-        setRoomData(data);
-        if (data.host && nama !== data.host) {
-          const playerRef = doc(db, `rooms/${id}/players`, nama);
-          setDoc(playerRef, { nama, skor: 0, x: 0, y: 0 }, { merge: true });
-        }
+        setRoomData(docSnap.data());
       } else {
         router.push("/dashboard");
       }
     });
 
+    // MENDENGARKAN DATA PEMAIN (Skor & Posisi)
     const unsubPlayers = onSnapshot(query(collection(db, `rooms/${id}/players`), orderBy("skor", "desc")), (snapshot) => {
       setPlayers(snapshot.docs.map(doc => doc.data()));
     });
@@ -66,7 +82,42 @@ export default function Room() {
     return () => { unsubRoom(); unsubPlayers(); };
   }, [id, router]);
 
+  // LOGIK FIX: SPAWN PEMAIN DAN MENCEGAH BUG RESET SKOR & MENTAL KE (0,0)
+  useEffect(() => {
+    if (!roomData?.host || !namaPeserta) return;
+    if (roomData.host !== namaPeserta) {
+      const initPlayer = async () => {
+        const playerRef = doc(db, `rooms/${id}/players`, namaPeserta);
+        const pSnap = await getDoc(playerRef);
+        
+        if (!pSnap.exists()) {
+          // Cari lokasi acak yang BUKAN tepat di atas kotak harta
+          let startX, startY;
+          let isSafe = false;
+          while (!isSafe) {
+            startX = Math.floor(Math.random() * GRID_SIZE);
+            startY = Math.floor(Math.random() * GRID_SIZE);
+            if (roomData.soal) {
+              const onTreasure = roomData.soal.some(s => s.x === startX && s.y === startY);
+              isSafe = !onTreasure;
+            } else {
+              isSafe = true; // Jika game belum mulai, lokasi manapun aman
+            }
+          }
+          await setDoc(playerRef, { nama: namaPeserta, skor: 0, x: startX, y: startY });
+          setPosisi({ x: startX, y: startY });
+        } else {
+          // Memuat posisi terakhir (mengunci agar tidak lompat ke 0,0 saat menjawab)
+          const data = pSnap.data();
+          setPosisi({ x: data.x, y: data.y });
+        }
+      };
+      initPlayer();
+    }
+  }, [roomData?.host, namaPeserta, id]); // Effect ini hanya dijalankan sekali ketika info Host terbaca
+
   const isHost = roomData?.host === namaPeserta;
+  const myRank = activePlayers.findIndex(p => p.nama === namaPeserta) + 1;
 
   useEffect(() => {
     if (!roomData) return;
@@ -82,9 +133,6 @@ export default function Room() {
     }
     return () => { if (idleTimer) clearTimeout(idleTimer); };
   }, [roomData?.status, isHost, id, router]);
-
-  const activePlayers = players.filter(p => p.nama !== roomData?.host);
-  const myRank = activePlayers.findIndex(p => p.nama === namaPeserta) + 1;
 
   useEffect(() => {
     if (!roomData || roomData.status !== "playing" || !roomData.startedAt) return;
@@ -150,7 +198,10 @@ export default function Room() {
       let allSoal = snapshot.docs.map(d => ({id: d.id, ...d.data()})).sort(() => 0.5 - Math.random()).slice(0, parseInt(pengaturan.jumlah));
       if(allSoal.length === 0) return alert("Soal tidak ditemukan untuk materi & tingkat ini!");
 
-      const usedCoords = new Set(["0,0"]); 
+      const usedCoords = new Set();
+      // Cegah bentrok dengan lokasi spawn pemain yang sudah gabung saat generate harta
+      activePlayers.forEach(p => usedCoords.add(`${p.x},${p.y}`)); 
+
       const soalWithData = allSoal.map((soal, index) => {
         let rx, ry;
         do { rx = Math.floor(Math.random() * GRID_SIZE); ry = Math.floor(Math.random() * GRID_SIZE); } while(usedCoords.has(`${rx},${ry}`));
@@ -175,8 +226,8 @@ export default function Room() {
     const newSoal = [...roomData.soal];
     const tIndex = newSoal.findIndex(s => s.soalIndex === soalAktif.soalIndex);
     if (isBenar) {
-      const skorBaru = skor + 10;
-      setSkor(skorBaru);
+      // Penambahan poin presisi dari skor saat ini di database
+      const skorBaru = mySkor + 10;
       await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { skor: skorBaru });
       newSoal[tIndex].isSelesai = true;
     } else {
@@ -191,8 +242,7 @@ export default function Room() {
     const isBenar = jawaban === roomData.soal[localSoalIndex % roomData.soal.length]?.jawabanBenar;
     setFeedback({ type: isBenar ? "BENAR" : "SALAH", text: isBenar ? "LARI 1 LANGKAH! 🏃‍♂️💨" : "TETAP DI TEMPAT! ❌" });
     if (isBenar) {
-      const skorBaru = skor + 10;
-      setSkor(skorBaru);
+      const skorBaru = mySkor + 10;
       await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { skor: skorBaru });
     }
     setAtletView("TRACK");
@@ -247,7 +297,9 @@ export default function Room() {
       ))}
       {rPlayers.map((p, idx) => (
         <div key={idx} className="absolute w-[10%] h-[10%] flex flex-col items-center justify-center z-20" style={{ left: `${p.x * 10}%`, top: `${p.y * 10}%` }}>
-          <div className="w-5 h-5 bg-white/20 border border-white rounded-md flex items-center justify-center backdrop-blur-md">📦</div>
+          <div className="w-5 h-5 bg-white/20 border border-white rounded-md flex items-center justify-center backdrop-blur-md text-xs shadow-md">
+            {getIconForPlayer(p.nama, rData.tema)}
+          </div>
           <span className="absolute -bottom-3 text-[7px] bg-black/80 px-1 rounded text-white font-bold">{p.nama.substring(0,5)}</span>
         </div>
       ))}
@@ -273,7 +325,6 @@ export default function Room() {
         .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
       `}} />
       
-      {/* Background Canvas Engine (Terhubung Penuh, forcePauseMusic di true agar musik mati saat main gamenya) */}
       <BackgroundCanvas 
         tema={temaAktif} 
         particlesEnabled={particlesEnabled} 
@@ -326,13 +377,15 @@ export default function Room() {
                 {s.claimedBy && s.claimedBy !== namaPeserta && (<span className="absolute -top-3 text-[7px] bg-rose-500/90 px-1 rounded text-white font-bold z-30">{s.claimedBy}</span>)}
               </div>
             ))}
+            
+            {/* AVATAR EMOTICON PEMAIN */}
             {activePlayers.map((p, idx) => (
               <div key={idx} className="absolute w-[10%] h-[10%] flex items-center justify-center transition-all duration-300 z-20" style={{ left: `${p.x * 10}%`, top: `${p.y * 10}%` }}>
                 <div className="relative flex flex-col items-center">
-                  <div className={`w-7 h-7 rounded-md flex items-center justify-center transition-all border ${ p.nama === namaPeserta ? "bg-[var(--primary)]/90 border-white shadow-[var(--glow-shadow)] scale-110 z-30" : "bg-white/20 border-white/50 backdrop-blur-md z-10" }`}>
-                    {p.nama === namaPeserta ? <Navigation size={14} className="text-slate-900 -rotate-45" /> : <span className="text-white/80 text-[10px]">📦</span>}
+                  <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all border ${ p.nama === namaPeserta ? "bg-[var(--primary)]/90 border-white shadow-[var(--glow-shadow)] scale-110 z-30" : "bg-white/20 border-white/50 backdrop-blur-md z-10" }`}>
+                    <span className="text-lg md:text-xl drop-shadow-md">{getIconForPlayer(p.nama, temaAktif)}</span>
                   </div>
-                  <span className={`absolute -bottom-4 text-[7px] font-black px-1 rounded whitespace-nowrap z-40 ${p.nama === namaPeserta ? 'bg-[var(--primary)] text-slate-900' : 'bg-black/70 text-white'}`}>{p.nama}</span>
+                  <span className={`absolute -bottom-5 text-[9px] font-black px-1.5 py-0.5 rounded whitespace-nowrap z-40 ${p.nama === namaPeserta ? 'bg-[var(--primary)] text-slate-900 shadow-md' : 'bg-black/70 text-white'}`}>{p.nama}</span>
                 </div>
               </div>
             ))}
@@ -416,6 +469,7 @@ export default function Room() {
                 <div key={index} className={`flex justify-between items-center p-4 rounded-xl border transition-all duration-500 ${index === 0 ? 'bg-yellow-500/20 border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.4)] scale-[1.02] z-10 relative' : index === 1 ? 'bg-slate-300/10 border-slate-400 shadow-[0_0_10px_rgba(203,213,225,0.2)]' : index === 2 ? 'bg-amber-600/10 border-amber-600/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
                   <div className="flex items-center gap-4">
                     <span className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-base ${index === 0 ? 'bg-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]' : index === 1 ? 'bg-slate-300 text-black' : index === 2 ? 'bg-amber-600 text-white' : 'bg-white/10 text-white'}`}>{index + 1}</span>
+                    <span className="text-lg drop-shadow-md">{getIconForPlayer(p.nama, temaAktif)}</span>
                     <span className="font-bold text-lg">{p.nama}</span>
                   </div>
                   <span className={`font-black text-xl px-3 py-1 rounded-lg border ${index === 0 ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/50' : 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'}`}>{p.skor} Pts</span>
@@ -455,7 +509,11 @@ export default function Room() {
                 <div className="glass-panel bg-black/30 p-3 max-h-80 overflow-y-auto mb-8 border-none custom-scrollbar">
                   {activePlayers.map((p, index) => (
                     <div key={index} className="flex justify-between items-center glass-btn border-white/10 p-4 mb-2 rounded-xl">
-                      <div className="flex items-center gap-4"><span className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-black ${index === 0 ? 'bg-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.5)] scale-110' : index === 1 ? 'bg-slate-300 text-black' : index === 2 ? 'bg-amber-600 text-white' : 'bg-white/10'}`}>{index + 1}</span><span className="font-bold text-xl">{p.nama}</span></div>
+                      <div className="flex items-center gap-4">
+                        <span className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-black ${index === 0 ? 'bg-yellow-400 text-black shadow-[0_0_15px_rgba(250,204,21,0.5)] scale-110' : index === 1 ? 'bg-slate-300 text-black' : index === 2 ? 'bg-amber-600 text-white' : 'bg-white/10'}`}>{index + 1}</span>
+                        <span className="text-2xl drop-shadow-md">{getIconForPlayer(p.nama, temaAktif)}</span>
+                        <span className="font-bold text-xl">{p.nama}</span>
+                      </div>
                       <span className="font-black text-[var(--primary)] text-2xl">{p.skor} Pts</span>
                     </div>
                   ))}
@@ -524,7 +582,7 @@ export default function Room() {
                   <div className="flex flex-wrap gap-3">
                     {activePlayers.length === 0 && <span className="text-[var(--text-muted)] text-sm italic">Belum ada siswa yang masuk...</span>}
                     {activePlayers.map((p, idx) => (
-                      <span key={idx} className="glass-btn px-4 py-2 rounded-full text-sm font-bold border-[var(--primary)]/30 text-[var(--text-main)] flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[var(--primary)] animate-pulse shadow-[var(--glow-shadow)]"></span>{p.nama}</span>
+                      <span key={idx} className="glass-btn px-4 py-2 rounded-full text-sm font-bold border-[var(--primary)]/30 text-[var(--text-main)] flex items-center gap-2"><span className="text-base drop-shadow-sm">{getIconForPlayer(p.nama, temaAktif)}</span>{p.nama}</span>
                     ))}
                   </div>
                 </div>

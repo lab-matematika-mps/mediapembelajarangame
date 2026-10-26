@@ -2,9 +2,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, onSnapshot, updateDoc, setDoc, collection, query, orderBy, getDocs, where } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc, setDoc, deleteDoc, collection, query, orderBy, getDocs, where } from "firebase/firestore";
 import { db } from "../../../firebase";
-import { Trophy, Play, XSquare, Navigation, Gift, Target, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Timer, Flag, Cat, Dog, Rabbit, Bird } from "lucide-react";
+import { Trophy, Play, XSquare, Navigation, Gift, ShieldCheck, XOctagon, Settings2, BookOpen, BarChart, Hash, Map, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Timer, Flag, Cat, Dog, Rabbit, Bird } from "lucide-react";
 
 const GRID_SIZE = 10;
 const ANIMAL_ICONS = [Cat, Dog, Rabbit, Bird]; // Ikon Unicolor Lucide
@@ -40,7 +40,7 @@ export default function Room() {
   const canvasRef = useRef(null);
   const [particlesEnabled, setParticlesEnabled] = useState(true);
 
-  // --- INISIALISASI & MATIKAN MUSIK ---
+  // --- 1. INISIALISASI ROOM & PEMAIN ---
   useEffect(() => {
     const nama = localStorage.getItem("nama_peserta");
     if (!nama) return router.push("/");
@@ -72,8 +72,38 @@ export default function Room() {
     return () => { unsubRoom(); unsubPlayers(); };
   }, [id, router]);
 
-  // --- FILTER PEMAIN (HAPUS HOST DARI DAFTAR) ---
+
+  // --- 2. FITUR AUTO-KICK 1 MENIT (HEMAT RAD) ---
   const isHost = roomData?.host === namaPeserta;
+  
+  useEffect(() => {
+    if (!roomData) return;
+    
+    let idleTimer;
+    // Jika room berstatus "waiting" atau "finished", mulai timer 60 detik
+    if (roomData.status === "waiting" || roomData.status === "finished") {
+      idleTimer = setTimeout(async () => {
+        // Jika user adalah Host, hapus document room dari Firebase
+        if (isHost) {
+          try {
+            await deleteDoc(doc(db, "rooms", id));
+          } catch (error) {
+            console.error("Gagal menghapus room:", error);
+          }
+        }
+        alert("Room tidak aktif selama 1 Menit. Kamu dikeluarkan secara otomatis untuk menghemat sumber daya server (Rad).");
+        router.push("/lobby");
+      }, 60000); // 60.000 ms = 1 Menit
+    }
+
+    // Bersihkan timer jika status berubah (misal game dimulai)
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer);
+    };
+  }, [roomData?.status, isHost, id, router]);
+
+
+  // --- FILTER PEMAIN ---
   const activePlayers = players.filter(p => p.nama !== roomData?.host);
   const myRank = activePlayers.findIndex(p => p.nama === namaPeserta) + 1;
 
@@ -172,7 +202,7 @@ export default function Room() {
 
       await updateDoc(doc(db, "rooms", id), { 
         status: "playing",
-        startedAt: Date.now(), // Trigger Aba-aba
+        startedAt: Date.now(),
         alasanAkhir: null,
         pengaturan: pengaturan,
         soal: soalWithData 
@@ -218,20 +248,19 @@ export default function Room() {
       await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { skor: skorBaru });
     }
 
-    setAtletView("TRACK"); // Ganti tampilan ke posisi lintasan
+    setAtletView("TRACK");
     
     setTimeout(() => {
       setFeedback(null);
       setLocalSoalIndex(prev => prev + 1);
       setAtletView("SOAL");
-    }, 2500); // 2.5 detik durasi tayang lintasan
+    }, 2500);
   };
 
 
   // --- KUMPULAN KOMPONEN RENDER KHUSUS ---
   const formatTime = (secs) => `${Math.floor(secs / 60).toString().padStart(2, '0')}:${(secs % 60).toString().padStart(2, '0')}`;
 
-  // Komponen Lintasan Baru (Melengkung & Unicolor Icons)
   const TrackComponent = ({ pPlayers, pPengaturan }) => (
     <div className="w-full h-full min-h-[300px] flex flex-col justify-center gap-4 p-4 md:p-6 glass-panel border border-[var(--primary)]/50 shadow-[var(--glow-shadow)] rounded-3xl animate-fadeIn relative overflow-hidden">
       <div className="text-center mb-2 z-10">
@@ -248,13 +277,8 @@ export default function Room() {
   
           return (
             <div key={i} className="relative bg-black/40 border border-white/10 rounded-full h-14 md:h-16 flex items-center shadow-inner overflow-hidden">
-              {/* Garis Lintasan Melengkung Wave BG */}
               <div className="absolute inset-x-2 h-1.5 md:h-2 bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-emerald-500/60 rounded-full"></div>
-              
-              {/* Finish Line Indicator */}
               <div className="absolute right-3 font-black text-xl md:text-2xl z-0 opacity-80">🏁</div>
-  
-              {/* Player Icon & Tag Move Smoothly (Tanpa kedip) */}
               <div 
                 className="absolute flex items-center gap-2 transition-all duration-1000 ease-out z-10"
                 style={{ left: `calc(${Math.max(2, progress)}% - 10px)` }}
@@ -293,35 +317,184 @@ export default function Room() {
     </div>
   );
 
-  // --- ENGINE ANIMASI BACKGROUND TEMA ---
+  // --- ENGINE ANIMASI BACKGROUND TEMA (100% PERSIS HTML LAMA) ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !roomData?.tema) return;
     const ctx = canvas.getContext("2d");
-    let animationId; let particles = [];
+    let animationId; 
+    let particles = [];
     const tema = roomData.tema; 
-    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; init(); };
+
     const init = () => {
-      particles = []; const w = canvas.width; const h = canvas.height;
+      particles = []; 
+      const w = canvas.width; 
+      const h = canvas.height;
+
       if (tema === 'galaxy') {
-        for (let i = 0; i < 150; i++) particles.push({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 1.5, alpha: Math.random(), alphaChange: (Math.random() * 0.02) - 0.01, type: 'star' });
+        // Bintang Kelap-Kelip
+        for (let i = 0; i < 150; i++) {
+          particles.push({ 
+            x: Math.random() * w, y: Math.random() * h, 
+            r: Math.random() * 1.5, 
+            alpha: Math.random(), 
+            alphaChange: (Math.random() * 0.02) - 0.01, 
+            type: 'star' 
+          });
+        }
+        // Meteor / Komet Jatuh
+        for (let i = 0; i < 3; i++) {
+          particles.push({ 
+            x: Math.random() * w, y: Math.random() * h, 
+            length: Math.random() * 80 + 20, 
+            speedX: (Math.random() * 2 + 1) * (Math.random() > 0.5 ? 1 : -1), 
+            speedY: Math.random() * 2 + 1, 
+            alpha: Math.random() * 0.5 + 0.1, 
+            type: 'comet' 
+          });
+        }
       } else if (tema === 'sky') {
-        for (let i = 0; i < 5; i++) particles.push({ x: Math.random() * w, y: Math.random() * (h/2), w: Math.random() * 200 + 100, h: Math.random() * 40 + 20, speed: Math.random() * 0.5 + 0.1, alpha: Math.random() * 0.2 + 0.1, type: 'cloud' });
+        // Awan
+        for (let i = 0; i < 5; i++) {
+          particles.push({ 
+            x: Math.random() * w, y: Math.random() * (h/2), 
+            w: Math.random() * 200 + 100, h: Math.random() * 40 + 20, 
+            speed: Math.random() * 0.5 + 0.1, 
+            alpha: Math.random() * 0.2 + 0.1, 
+            type: 'cloud' 
+          });
+        }
+        // Daun Gugur Random
+        for (let i = 0; i < 30; i++) {
+          particles.push({ 
+            x: Math.random() * w, y: Math.random() * h, 
+            size: Math.random() * 6 + 3, 
+            speedY: Math.random() * 1 + 0.5, 
+            angle: Math.random() * Math.PI * 2, 
+            angleSpeed: (Math.random() * 0.05) - 0.025, 
+            color: Math.random() > 0.5 ? '#ffb347' : '#ffcc33', 
+            type: 'leaf' 
+          });
+        }
       } else if (tema === 'ocean') {
-        for (let i = 0; i < 80; i++) particles.push({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 4 + 1, speedY: -(Math.random() * 2 + 0.5), wobble: Math.random() * Math.PI * 2, wobbleSpeed: Math.random() * 0.05, type: 'bubble' });
+        // Gelembung Naik
+        for (let i = 0; i < 80; i++) {
+          particles.push({ 
+            x: Math.random() * w, y: Math.random() * h, 
+            r: Math.random() * 4 + 1, 
+            speedY: -(Math.random() * 2 + 0.5), 
+            wobble: Math.random() * Math.PI * 2, 
+            wobbleSpeed: Math.random() * 0.05, 
+            type: 'bubble' 
+          });
+        }
+        // Siluet Ikan Berenang
+        for (let i = 0; i < 5; i++) {
+          particles.push({ 
+            x: Math.random() * w, y: Math.random() * h * 0.8 + h * 0.1, 
+            size: Math.random() * 20 + 10, 
+            speedX: -(Math.random() * 1.5 + 0.5), 
+            wobble: Math.random() * Math.PI * 2, 
+            type: 'fish' 
+          });
+        }
       }
     };
+
+    const resize = () => { 
+      canvas.width = window.innerWidth; 
+      canvas.height = window.innerHeight; 
+      init(); 
+    };
+
     const animate = () => {
       animationId = requestAnimationFrame(animate);
       if (!particlesEnabled) { ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      
       particles.forEach(p => {
-        if (tema === 'galaxy' && p.type === 'star') { p.alpha += p.alphaChange; if (p.alpha <= 0 || p.alpha >= 1) p.alphaChange *= -1; ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(p.alpha)})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
-        else if (tema === 'sky' && p.type === 'cloud') { p.x += p.speed; if (p.x > canvas.width + p.w) p.x = -p.w; ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`; ctx.beginPath(); ctx.roundRect(p.x, p.y, p.w, p.h, p.h/2); ctx.fill(); }
-        else if (tema === 'ocean' && p.type === 'bubble') { p.y += p.speedY; p.wobble += p.wobbleSpeed; p.x += Math.sin(p.wobble) * 0.5; if (p.y < -10) { p.y = canvas.height + 10; p.x = Math.random() * canvas.width; } ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.stroke(); }
+        if (tema === 'galaxy') {
+          if (p.type === 'star') { 
+            p.alpha += p.alphaChange; 
+            if (p.alpha <= 0 || p.alpha >= 1) p.alphaChange *= -1; 
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(p.alpha)})`; 
+            ctx.beginPath(); 
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); 
+            ctx.fill(); 
+          }
+          else if (p.type === 'comet') { 
+            p.x += p.speedX; p.y += p.speedY; 
+            if(p.x > w + 100 || p.x < -100 || p.y > h + 100) { p.x = Math.random() * w; p.y = -50; }
+            const gradient = ctx.createLinearGradient(p.x, p.y, p.x - p.speedX * 10, p.y - p.speedY * 10);
+            gradient.addColorStop(0, `rgba(0, 243, 255, ${p.alpha})`);
+            gradient.addColorStop(1, 'rgba(0, 243, 255, 0)');
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - p.speedX * 10, p.y - p.speedY * 10);
+            ctx.stroke();
+          }
+        } 
+        else if (tema === 'sky') {
+          if (p.type === 'cloud') { 
+            p.x += p.speed; 
+            if(p.x > w + p.w) p.x = -p.w; 
+            ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`; 
+            ctx.beginPath(); 
+            ctx.roundRect(p.x, p.y, p.w, p.h, p.h/2); 
+            ctx.fill(); 
+          }
+          else if (p.type === 'leaf') { 
+            p.y += p.speedY; 
+            p.angle += p.angleSpeed; 
+            p.x += Math.sin(p.angle) * 1; 
+            if(p.y > h + 10) { p.y = -10; p.x = Math.random() * w; }
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, p.size, p.size/2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        } 
+        else if (tema === 'ocean') {
+          if (p.type === 'bubble') { 
+            p.y += p.speedY; 
+            p.wobble += p.wobbleSpeed; 
+            p.x += Math.sin(p.wobble) * 0.5; 
+            if(p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+            ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`; 
+            ctx.lineWidth = 1; 
+            ctx.beginPath(); 
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); 
+            ctx.stroke(); 
+          }
+          else if (p.type === 'fish') { 
+            p.x += p.speedX; 
+            p.wobble += 0.05; 
+            p.y += Math.sin(p.wobble) * 0.5; 
+            if(p.x < -50) { p.x = w + 50; p.y = Math.random() * h * 0.8 + h * 0.1; }
+            ctx.fillStyle = `rgba(0, 0, 0, 0.15)`;
+            ctx.beginPath();
+            ctx.ellipse(p.x, p.y, p.size, p.size/3, 0, 0, Math.PI*2);
+            ctx.moveTo(p.x + p.size*0.8, p.y);
+            ctx.lineTo(p.x + p.size*1.5, p.y - p.size/2);
+            ctx.lineTo(p.x + p.size*1.5, p.y + p.size/2);
+            ctx.fill();
+          }
+        }
       });
     };
-    window.addEventListener('resize', resize); resize();
+
+    window.addEventListener('resize', resize); 
+    resize();
     return () => { window.removeEventListener('resize', resize); cancelAnimationFrame(animationId); };
   }, [roomData?.tema, particlesEnabled]);
 
@@ -345,6 +518,8 @@ export default function Room() {
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
       `}} />
+      
+      {/* CANVAS BACKGROUND */}
       <canvas ref={canvasRef} className="fixed inset-0 w-full h-full z-0 pointer-events-none"></canvas>
 
       {/* ========================================================================= */}

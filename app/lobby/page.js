@@ -31,22 +31,24 @@ export default function Lobby() {
 
   const buatRoomBaru = async () => {
     try {
-      const daftarSoal = [
+      // Kumpulan 3 soal sementara yang bisa dimainkan
+      const kumpulanSoal = [
+        { pertanyaan: "Berapa hasil dari 5 + 7?", opsi: ["10", "11", "12", "13"], jawabanBenar: "12" },
         { pertanyaan: "Berapa FPB dari 12 dan 18?", opsi: ["2", "4", "6", "8"], jawabanBenar: "6" },
-        { pertanyaan: "Hasil dari 7 x 8 adalah?", opsi: ["54", "56", "64", "48"], jawabanBenar: "56" },
-        { pertanyaan: "Akar kuadrat dari 144 adalah?", opsi: ["10", "12", "14", "16"], jawabanBenar: "12" }
+        { pertanyaan: "Akar kuadrat dari 81 adalah?", opsi: ["7", "8", "9", "10"], jawabanBenar: "9" }
       ];
 
       const docRef = await addDoc(collection(db, "rooms"), {
         nama_room: `Arena ${Math.floor(Math.random() * 1000)}`,
         status: "waiting",
-        host: namaPeserta,
-        soal: daftarSoal,
-        soal_aktif: 0
+        host: namaPeserta, // Baris ini otomatis menjadikan si pembuat room sebagai Host
+        soal: kumpulanSoal, // Memasukkan daftar soal ke dalam database arena ini
+        soal_aktif: 0 // Dimulai dari soal indeks ke-0 (soal pertama)
       });
       router.push(`/room/${docRef.id}`);
     } catch (error) {
-      alert("Database belum merespons. Pastikan kode config Firebase sudah diisi.");
+      alert("Gagal membuat room. Pastikan Firestore sudah aktif.");
+      console.error(error);
     }
   };
 

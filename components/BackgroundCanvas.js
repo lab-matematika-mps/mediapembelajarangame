@@ -1,3 +1,4 @@
+// lab-matematika-mps/mediapembelajarangame/components/BackgroundCanvas.js
 "use client";
 import { useEffect, useRef } from "react";
 
@@ -6,23 +7,21 @@ export default function BackgroundCanvas({
   particlesEnabled = true,
   musicEnabled = false,
   volume = 0.5,
-  forcePauseMusic = false // Tambahan agar bisa mematikan musik di dalam room/game
+  forcePauseMusic = false 
 }) {
   const canvasRef = useRef(null);
 
   // --- 1. ENGINE AUDIO GLOBAL (BGM & SFX) ---
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // Gunakan window.bgMusic agar tidak terputus saat pindah halaman (Next.js)
       if (!window.bgMusic) {
         window.bgMusic = new Audio("/background-music.mp3");
         window.bgMusic.loop = true;
       }
-
       window.bgMusic.volume = volume;
 
       if (musicEnabled && !forcePauseMusic) {
-        window.bgMusic.play().catch(e => console.log("Autoplay ditahan browser, butuh interaksi user."));
+        window.bgMusic.play().catch(e => console.log("Autoplay ditahan browser"));
       } else {
         window.bgMusic.pause();
       }
@@ -32,7 +31,6 @@ export default function BackgroundCanvas({
   // Efek Suara (SFX) Global saat klik tombol
   useEffect(() => {
     const handleGlobalClick = (e) => {
-      // Cek apakah klik berasal dari tombol DAN tombol itu BUKAN kartu tema
       if (musicEnabled && e.target.closest("button, .glass-btn")) {
         if (!e.target.closest(".theme-card")) {
           const sfx = new Audio("/sfx-click.mp3");
@@ -46,7 +44,6 @@ export default function BackgroundCanvas({
   }, [musicEnabled, volume]);
 
   // --- 2. ENGINE VISUAL (PARTIKEL TEMA) ---
-  // (Kode kanvas ini sudah benar, saya tuliskan ulang secara utuh)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -100,6 +97,8 @@ export default function BackgroundCanvas({
 
     window.addEventListener("resize", resize);
     resize();
+    animate(); // INI DIA BARIS YANG SEBELUMNYA KELUPAAN!
+    
     return () => { window.removeEventListener("resize", resize); cancelAnimationFrame(animationId); };
   }, [tema, particlesEnabled]);
 

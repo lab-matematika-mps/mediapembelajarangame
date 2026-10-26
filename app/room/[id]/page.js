@@ -25,17 +25,13 @@ export default function Room() {
 
   const [atletView, setAtletView] = useState("SOAL");
   const [localSoalIndex, setLocalSoalIndex] = useState(0);
-
   const [timeElapsed, setTimeElapsed] = useState(0);
 
-  const [pengaturan, setPengaturan] = useState({
-    mode: "Kumpulkan Harta",
-    materi: "Ciri-ciri Bangun Datar",
-    tingkat: "Mudah",
-    jumlah: 5
-  });
+  const [pengaturan, setPengaturan] = useState({ mode: "Kumpulkan Harta", materi: "Ciri-ciri Bangun Datar", tingkat: "Mudah", jumlah: 5 });
 
   const [particlesEnabled, setParticlesEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [volume, setVolume] = useState(0.5);
 
   useEffect(() => {
     const nama = localStorage.getItem("nama_peserta");
@@ -43,8 +39,11 @@ export default function Room() {
     setNamaPeserta(nama);
     
     setParticlesEnabled(localStorage.getItem("particlesEnabled") !== "false");
+    setMusicEnabled(localStorage.getItem("musicEnabled") === "true");
+    const savedVol = localStorage.getItem("bgVolume");
+    if (savedVol) setVolume(parseFloat(savedVol));
 
-    if (typeof window !== "undefined" && window.bgMusic) window.bgMusic.pause();
+    // Menghapus window.bgMusic.pause() yang sebelumnya ada disini karena BackgroundCanvas akan mengaturnya.
 
     const roomRef = doc(db, "rooms", id);
     const unsubRoom = onSnapshot(roomRef, (docSnap) => {
@@ -69,7 +68,6 @@ export default function Room() {
 
   const isHost = roomData?.host === namaPeserta;
 
-  // AUTO KICK 60 DETIK
   useEffect(() => {
     if (!roomData) return;
     let idleTimer;
@@ -96,7 +94,6 @@ export default function Room() {
       if (isHost) {
         const gameTime = elapsed - 4;
         const maxSkor = parseInt(roomData.pengaturan.jumlah) * 10;
-
         if (gameTime >= 300) akhiriGame("WAKTU HABIS (5 Menit)!");
         else if (roomData.pengaturan.mode === "Kumpulkan Harta" && roomData.soal && roomData.soal.every(s => s.isSelesai)) akhiriGame("SEMUA HARTA DITEMUKAN!");
         else if (roomData.pengaturan.mode === "Atlet Lari" && activePlayers.some(p => p.skor >= maxSkor)) akhiriGame("BALAPAN SELESAI, ADA PEMENANG!");
@@ -117,7 +114,6 @@ export default function Room() {
     if (newX !== posisi.x || newY !== posisi.y) {
       setPosisi({ x: newX, y: newY });
       await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { x: newX, y: newY });
-
       const currentTreasure = roomData.soal?.find(s => s.x === newX && s.y === newY && !s.isSelesai);
       if (currentTreasure) {
         if (currentTreasure.claimedBy === null || currentTreasure.claimedBy === namaPeserta) {
@@ -152,7 +148,6 @@ export default function Room() {
       const q = query(collection(db, "daftar_soal"), where("materi", "==", pengaturan.materi), where("tingkat", "==", pengaturan.tingkat));
       const snapshot = await getDocs(q);
       let allSoal = snapshot.docs.map(d => ({id: d.id, ...d.data()})).sort(() => 0.5 - Math.random()).slice(0, parseInt(pengaturan.jumlah));
-      
       if(allSoal.length === 0) return alert("Soal tidak ditemukan untuk materi & tingkat ini!");
 
       const usedCoords = new Set(["0,0"]); 
@@ -164,11 +159,7 @@ export default function Room() {
       });
 
       await updateDoc(doc(db, "rooms", id), { 
-        status: "playing",
-        startedAt: Date.now(),
-        alasanAkhir: null,
-        pengaturan: pengaturan,
-        soal: soalWithData 
+        status: "playing", startedAt: Date.now(), alasanAkhir: null, pengaturan: pengaturan, soal: soalWithData 
       });
     } catch (error) { alert("Gagal: " + error.message); }
   };
@@ -183,7 +174,6 @@ export default function Room() {
 
     const newSoal = [...roomData.soal];
     const tIndex = newSoal.findIndex(s => s.soalIndex === soalAktif.soalIndex);
-
     if (isBenar) {
       const skorBaru = skor + 10;
       setSkor(skorBaru);
@@ -200,13 +190,11 @@ export default function Room() {
   const jawabSoalAtlet = async (jawaban) => {
     const isBenar = jawaban === roomData.soal[localSoalIndex % roomData.soal.length]?.jawabanBenar;
     setFeedback({ type: isBenar ? "BENAR" : "SALAH", text: isBenar ? "LARI 1 LANGKAH! 🏃‍♂️💨" : "TETAP DI TEMPAT! ❌" });
-    
     if (isBenar) {
       const skorBaru = skor + 10;
       setSkor(skorBaru);
       await updateDoc(doc(db, `rooms/${id}/players`, namaPeserta), { skor: skorBaru });
     }
-
     setAtletView("TRACK");
     setTimeout(() => {
       setFeedback(null);
@@ -229,21 +217,15 @@ export default function Room() {
           const target = parseInt(pPengaturan.jumlah) * 10;
           const progress = Math.min((p.skor / target) * 100, 100);
           const IconComp = ANIMAL_ICONS[i % ANIMAL_ICONS.length];
-  
           return (
             <div key={i} className="relative bg-black/40 border border-white/10 rounded-full h-14 md:h-16 flex items-center shadow-inner overflow-hidden">
               <div className="absolute inset-x-2 h-1.5 md:h-2 bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-emerald-500/60 rounded-full"></div>
               <div className="absolute right-3 font-black text-xl md:text-2xl z-0 opacity-80">🏁</div>
-              <div 
-                className="absolute flex items-center gap-2 transition-all duration-1000 ease-out z-10"
-                style={{ left: `calc(${Math.max(2, progress)}% - 10px)` }}
-              >
+              <div className="absolute flex items-center gap-2 transition-all duration-1000 ease-out z-10" style={{ left: `calc(${Math.max(2, progress)}% - 10px)` }}>
                 <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-[var(--primary)]/20 border-2 border-[var(--primary)] flex items-center justify-center text-[var(--primary)] shadow-[var(--glow-shadow)] backdrop-blur-md">
                   <IconComp size={20} className="md:w-6 md:h-6" />
                 </div>
-                <span className="text-[10px] md:text-xs bg-slate-900/90 text-white font-black px-2 md:px-3 py-1 rounded-md border border-white/20 whitespace-nowrap shadow-xl">
-                  {p.nama} ({p.skor} Pts)
-                </span>
+                <span className="text-[10px] md:text-xs bg-slate-900/90 text-white font-black px-2 md:px-3 py-1 rounded-md border border-white/20 whitespace-nowrap shadow-xl">{p.nama} ({p.skor} Pts)</span>
               </div>
             </div>
           )
@@ -291,8 +273,14 @@ export default function Room() {
         .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
       `}} />
       
-      {/* Background Canvas Engine dari Komponen */}
-      <BackgroundCanvas tema={temaAktif} particlesEnabled={particlesEnabled} />
+      {/* Background Canvas Engine (Terhubung Penuh, forcePauseMusic di true agar musik mati saat main gamenya) */}
+      <BackgroundCanvas 
+        tema={temaAktif} 
+        particlesEnabled={particlesEnabled} 
+        musicEnabled={musicEnabled}
+        volume={volume}
+        forcePauseMusic={true} 
+      />
 
       {roomData.status === "playing" && timeElapsed < 4 && (
         <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md">

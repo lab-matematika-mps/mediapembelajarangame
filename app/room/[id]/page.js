@@ -569,13 +569,15 @@ export default function Room() {
                 {isHost ? (
                   <div className="bg-black/30 p-6 rounded-2xl border border-[var(--glass-border)] text-left mb-8 space-y-5">
                     <h3 className="font-bold text-lg text-white flex items-center gap-2 mb-4 border-b border-white/10 pb-3"><Settings2 size={20} className="text-[var(--primary)]"/> Pengaturan Permainan</h3>
-                    <div>
-                      <label className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-2 mb-1.5"><Map size={14}/> Mode Permainan</label>
-                      <select value={pengaturan.mode} onChange={(e) => setPengaturan({...pengaturan, mode: e.target.value})} className="w-full p-3 rounded-xl bg-white/5 border border-white/10 text-white font-medium focus:border-[var(--primary)] outline-none cursor-pointer">
-                        <option className="bg-slate-900" value="Kumpulkan Harta">Kumpulkan Harta (Papan Catur)</option>
-                        <option className="bg-slate-900" value="Atlet Lari">Atlet Lari (Balapan)</option>
-                      </select>
-                    </div>
+                    // KODE BARU
+<div>
+  <label className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-2 mb-1.5">
+    <BookOpen size={14}/> Materi Latihan
+  </label>
+  <div className="w-full p-3 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/30 text-[var(--primary)] font-bold opacity-80 cursor-not-allowed">
+    Ciri-ciri Bangun Datar (Otomatis)
+  </div>
+</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="text-xs font-bold text-[var(--text-muted)] flex items-center gap-2 mb-1.5"><BookOpen size={14}/> Materi Latihan</label>

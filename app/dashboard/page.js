@@ -2,8 +2,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Gamepad2, Swords, Shapes, Square, X, LogOut, Sparkles } from "lucide-react";
-import BackgroundCanvas from "../../components/BackgroundCanvas"; // Tambahan
+import { BookOpen, Gamepad2, Swords, Shapes, X, LogOut, Sparkles } from "lucide-react";
+import BackgroundCanvas from "../../components/BackgroundCanvas";
 
 export default function Dashboard() {
   const [namaPeserta, setNamaPeserta] = useState("");
@@ -24,7 +24,6 @@ export default function Dashboard() {
     setNamaPeserta(nama);
     setTemaBg(tema);
 
-    // Ambil settingan audio dan partikel
     setMusicEnabled(localStorage.getItem("musicEnabled") === "true");
     setParticlesEnabled(localStorage.getItem("particlesEnabled") !== "false");
     const savedVol = localStorage.getItem("bgVolume");
@@ -44,7 +43,6 @@ export default function Dashboard() {
         .text-gradient { background: linear-gradient(to right, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
       `}} />
 
-      {/* Terhubung ke Background & Musik */}
       <BackgroundCanvas 
         tema={temaBg} 
         particlesEnabled={particlesEnabled} 
@@ -90,7 +88,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* FOOTER TRANSPARAN */}
       <footer className="w-full text-center py-3 bg-transparent z-10 relative">
         <p className="font-bold text-xs text-gradient">Berakhlak Mulia dan Berprestasi</p>
         <p className="text-[10px] text-[var(--text-muted)] mt-0.5">&copy; 2026 Mugeb Primary School (SD Muhammadiyah 1 GKB)</p>
@@ -103,13 +100,12 @@ export default function Dashboard() {
             <button onClick={() => setModalMateri(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={20}/></button>
             <h3 className="text-xl font-black mb-6 text-gradient flex items-center gap-2"><BookOpen size={22}/> Pilih Materi Pelajaran</h3>
             <div className="space-y-4">
-              <div onClick={() => alert("Materi Ciri-ciri Bangun Datar: Segitiga, Persegi, Lingkaran, dll.")} className="glass-btn p-4 rounded-xl flex items-center gap-4 cursor-pointer">
+              <div onClick={() => router.push("/materi")} className="glass-btn p-4 rounded-xl flex items-center gap-4 cursor-pointer border-l-4 border-l-[var(--primary)]">
                 <Shapes className="text-[var(--primary)]" size={28} />
-                <div className="text-left"><h4 className="font-bold text-sm">Ciri-ciri Bangun Datar</h4><p className="text-xs text-[var(--text-muted)]">Sisi, sudut, dan simetri</p></div>
-              </div>
-              <div onClick={() => alert("Materi Luas Bangun Datar: Rumus L = s x s, L = p x l, L = 1/2 x a x t")} className="glass-btn p-4 rounded-xl flex items-center gap-4 cursor-pointer">
-                <Square className="text-[var(--primary)]" size={28} />
-                <div className="text-left"><h4 className="font-bold text-sm">Luas Bangun Datar</h4><p className="text-xs text-[var(--text-muted)]">Rumus luas dan perhitungan</p></div>
+                <div className="text-left">
+                  <h4 className="font-bold text-sm">Ciri-ciri Bangun Datar</h4>
+                  <p className="text-xs text-[var(--text-muted)]">Sisi, sudut, dan bentuk bangun datar</p>
+                </div>
               </div>
             </div>
           </div>

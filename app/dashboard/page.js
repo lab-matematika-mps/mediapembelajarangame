@@ -2,8 +2,15 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Gamepad2, Swords, Shapes, X, LogOut, Sparkles } from "lucide-react";
+import { BookOpen, Gamepad2, Swords, Shapes, X, LogOut, Gift, Flag, Crosshair } from "lucide-react";
 import BackgroundCanvas from "../../components/BackgroundCanvas";
+
+// Daftar game Barak (offline, duel 2 pemain 1 perangkat)
+const BARAK_GAMES = [
+  { href: "/barak/harta-karun", title: "Duel Harta Karun", desc: "Rebut peti dan jawab soalnya lebih dulu", Icon: Gift, color: "var(--primary)" },
+  { href: "/barak/balap-lari", title: "Duel Balap Lari", desc: "Jawab benar, majukan pelarimu ke finis", Icon: Flag, color: "var(--secondary)" },
+  { href: "/barak/alien-shooter", title: "Duel Alien Shooter", desc: "Tembak alien di layar masing-masing", Icon: Crosshair, color: "var(--primary)" },
+];
 
 export default function Dashboard() {
   const [namaPeserta, setNamaPeserta] = useState("");
@@ -115,18 +122,24 @@ export default function Dashboard() {
       {/* MODAL BARAK (OFFLINE) */}
       {modalBarak && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel w-full max-w-md p-6 relative animate-fadeIn">
+          <div className="glass-panel w-full max-w-md p-6 relative animate-fadeIn max-h-[90dvh] overflow-y-auto">
             <button onClick={() => setModalBarak(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={20}/></button>
             <h3 className="text-xl font-black mb-6 text-gradient flex items-center gap-2"><Swords size={22}/> Mode Duel Offline</h3>
             <div className="space-y-4">
-              <div onClick={() => router.push("/barak/tug-of-war")} className="glass-btn p-4 rounded-xl flex items-center gap-4 cursor-pointer border-l-4 border-l-[var(--primary)]">
-                <Swords className="text-[var(--primary)]" size={28} />
-                <div className="text-left"><h4 className="font-bold text-sm">Tarik Tambang Matematika</h4><p className="text-xs text-[var(--text-muted)]">2 Player 1 Layar - Cepat & Tepat</p></div>
-              </div>
-              <div className="glass-btn p-4 rounded-xl flex items-center gap-4 opacity-50 cursor-not-allowed">
-                <Sparkles className="text-gray-400" size={28} />
-                <div className="text-left"><h4 className="font-bold text-sm">Alien Invasion</h4><p className="text-xs text-rose-400 font-bold">Coming Soon</p></div>
-              </div>
+              {BARAK_GAMES.map(({ href, title, desc, Icon, color }) => (
+                <div
+                  key={href}
+                  onClick={() => router.push(href)}
+                  className="glass-btn p-4 rounded-xl flex items-center gap-4 cursor-pointer"
+                  style={{ borderLeft: `4px solid ${color}` }}
+                >
+                  <Icon size={28} style={{ color }} />
+                  <div className="text-left">
+                    <h4 className="font-bold text-sm">{title}</h4>
+                    <p className="text-xs text-[var(--text-muted)]">{desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

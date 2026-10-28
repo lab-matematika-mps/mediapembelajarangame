@@ -1,592 +1,326 @@
-
+// app/barak/balap-lari/page.js
 "use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { Flag, LogOut, ShieldCheck, XOctagon } from "lucide-react";
+import {
+  DUEL, DUEL_AVATARS, ANS_KEYS, Shell, SetupCard, ResultCard, TimerPill, CountdownOverlay,
+  useBarakEnv, useCountdown, loadSoal, siapkanSoal, shuffle,
+} from "../_shared/kit";
 
-const MATERIAL = "Ciri-ciri Bangun Datar";
-const POINTS = { mudah: 10, sedang: 20, sulit: 30 };
-const TIME_LIMIT = 180;
+/* ============================================================
+   PENGATURAN GAME (mudah diubah)
+   ============================================================ */
+const WAKTU = 300;     // detik (sama dengan mode online)
+const FB_OK = 1200;    // jeda setelah jawaban benar (ms)
+const FB_BAD = 1800;   // jeda setelah jawaban salah (ms), sedikit lebih lama = penalti
 
-const FALLBACK = [
-  { pertanyaan: "Bangun datar yang mempunyai tiga sisi adalah ...", opsi: ["Persegi", "Segitiga", "Lingkaran", "Trapesium"], jawabanBenar: "Segitiga", pembahasan: "Segitiga memiliki tiga sisi dan tiga sudut." },
-  { pertanyaan: "Berapa banyak sisi persegi?", opsi: ["2", "3", "4", "5"], jawabanBenar: "4", pembahasan: "Persegi memiliki empat sisi sama panjang." },
-  { pertanyaan: "Bangun datar tanpa titik sudut adalah ...", opsi: ["Segitiga", "Persegi", "Lingkaran", "Layang-layang"], jawabanBenar: "Lingkaran", pembahasan: "Lingkaran tidak mempunyai titik sudut." },
-  { pertanyaan: "Persegi panjang mempunyai ... sudut siku-siku.", opsi: ["1", "2", "3", "4"], jawabanBenar: "4", pembahasan: "Keempat sudut persegi panjang adalah sudut siku-siku." },
-  { pertanyaan: "Segitiga sama sisi mempunyai ... sisi sama panjang.", opsi: ["1", "2", "3", "4"], jawabanBenar: "3", pembahasan: "Ketiga sisi segitiga sama sisi sama panjang." },
-  { pertanyaan: "Bangun datar dengan dua pasang sisi sejajar adalah ...", opsi: ["Segitiga", "Jajar genjang", "Lingkaran", "Trapesium"], jawabanBenar: "Jajar genjang", pembahasan: "Jajar genjang memiliki dua pasang sisi sejajar." },
-  { pertanyaan: "Trapesium mempunyai ... pasang sisi sejajar.", opsi: ["Tidak ada", "Satu", "Dua", "Tiga"], jawabanBenar: "Satu", pembahasan: "Trapesium memiliki satu pasang sisi sejajar." },
-  { pertanyaan: "Berapa banyak titik sudut pada segi empat?", opsi: ["2", "3", "4", "5"], jawabanBenar: "4", pembahasan: "Semua bangun segi empat memiliki empat titik sudut." },
-  { pertanyaan: "Bangun dengan empat sisi sama panjang dan empat sudut siku-siku adalah ...", opsi: ["Persegi", "Belah ketupat", "Trapesium", "Layang-layang"], jawabanBenar: "Persegi", pembahasan: "Persegi mempunyai empat sisi sama panjang dan empat sudut siku-siku." },
-  { pertanyaan: "Segitiga sama kaki memiliki ... sisi sama panjang.", opsi: ["Satu", "Dua", "Tiga", "Empat"], jawabanBenar: "Dua", pembahasan: "Segitiga sama kaki mempunyai dua sisi sama panjang." },
-];
+const akurasi = (p) => (p.ok + p.bad ? Math.round((p.ok / (p.ok + p.bad)) * 100) : 0);
 
-function shuffle(arr) {
-  return [...arr].sort(() => Math.random() - 0.5);
+function buatGame(soal, target) {
+  const pool = soal.map((s) => siapkanSoal(s));
+  // Tiap pemain dapat urutan soal berbeda supaya tidak saling mencontek
+  const deck = [shuffle(pool), shuffle(pool.map((q) => ({ ...q, opsi: shuffle(q.opsi) })))];
+  const mk = () => ({ idx: 0, steps: 0, ok: 0, bad: 0, lock: null });
+  return { target, deck, p: [mk(), mk()], over: false };
+}
+const soalSaatIni = (g, pi) => g.deck[pi][g.p[pi].idx % g.deck[pi].length];
+
+/* ============================================================
+   KOMPONEN
+   ============================================================ */
+function Track({ g, tema }) {
+  const av = DUEL_AVATARS[tema] || DUEL_AVATARS.galaxy;
+  return (
+    <div className="glass-panel w-full h-full min-h-[340px] p-3 md:p-4 flex flex-col shadow-[var(--glow-shadow)]" style={{ border: "2px solid var(--primary)" }}>
+      <h3 className="text-center font-black text-[var(--primary)] uppercase tracking-widest text-xs md:text-sm mb-2 flex items-center justify-center gap-2">
+        <Flag size={16} /> Sirkuit Duel <Flag size={16} />
+      </h3>
+
+      <div className="grid grid-cols-2 gap-3 mb-2 text-center">
+        {DUEL.map((pl, i) => (
+          <div key={i} className="leading-tight">
+            <p className="font-black text-xs md:text-sm" style={{ color: pl.color }}>{pl.nama}</p>
+            <p className="text-[10px] md:text-xs text-[var(--text-muted)] font-bold">{g.p[i].steps} / {g.target} langkah</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
+        {DUEL.map((pl, i) => {
+          const prog = Math.min(g.p[i].steps / g.target, 1);
+          return (
+            <div key={i} className="relative rounded-2xl overflow-hidden bg-black/30" style={{ border: `3px solid ${pl.color}` }}>
+              {/* garis finis */}
+              <div className="absolute inset-x-0 top-0 h-9 flex items-center justify-center" style={{ background: "repeating-conic-gradient(#fff 0% 25%, #111 0% 50%) 0 0 / 16px 16px" }}>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-black/80 text-white">FINIS 🏁</span>
+              </div>
+              {/* penanda langkah */}
+              {Array.from({ length: g.target + 1 }).map((_, k) => (
+                <div key={k} className="absolute left-3 right-3 border-t border-dashed border-white/15" style={{ bottom: `calc((100% - 2.25rem - 3rem) * ${k / g.target} + 1.5rem)` }} />
+              ))}
+              {/* pelari */}
+              <span
+                className="absolute left-1/2 -translate-x-1/2 w-12 h-12 rounded-full flex items-center justify-center text-3xl leading-none shadow-lg"
+                style={{ bottom: `calc((100% - 2.25rem - 3rem) * ${prog})`, transition: "bottom 0.9s cubic-bezier(.22,1,.36,1)", background: pl.color, border: "3px solid #fff" }}
+              >
+                {av[i]}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-function normalizeQuestion(q) {
-  const options = Array.isArray(q.opsi) ? q.opsi : [];
-  let answer = q.jawabanBenar;
+function RacePanel({ pi, g, tema, onAnswer, className = "" }) {
+  const pl = DUEL[pi];
+  const p = g.p[pi];
+  const av = (DUEL_AVATARS[tema] || DUEL_AVATARS.galaxy)[pi];
+  const q = soalSaatIni(g, pi);
+  const lock = p.lock;
 
-  if (typeof answer === "number" && answer >= 0 && answer < options.length) {
-    answer = options[answer];
-  }
+  return (
+    <section className={`glass-panel flex flex-col gap-2 md:gap-3 p-3 md:p-4 lg:overflow-y-auto custom-scrollbar ${className}`} style={{ border: `4px solid ${pl.color}` }}>
+      <div className="flex items-center gap-2">
+        <span className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-2xl" style={{ border: `2px solid ${pl.color}`, background: `${pl.color}30` }}>{av}</span>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-black text-base leading-tight" style={{ color: pl.color }}>{pl.nama}</h3>
+          <p className="text-[10px] text-[var(--text-muted)] font-bold">Tombol jawab {pl.ansLabels[0]}–{pl.ansLabels[3]}</p>
+        </div>
+        <span key={p.steps} className="score-pop text-3xl md:text-4xl font-black" style={{ color: pl.color }}>{p.steps}<small className="text-sm text-[var(--text-muted)]">/{g.target}</small></span>
+      </div>
 
-  return {
-    pertanyaan: q.pertanyaan || q.q || "Perhatikan soal berikut.",
-    opsi: options,
-    jawabanBenar: answer,
-    pembahasan: q.pembahasan || q.penjelasan || q.exp || "",
-  };
+      <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] md:text-xs font-bold">
+        {[["Benar", p.ok, "#34d399"], ["Salah", p.bad, "#fb7185"], ["Akurasi", `${akurasi(p)}%`, ""]].map(([l, v, col]) => (
+          <div key={l} className="rounded-lg bg-black/20 py-1">
+            <b className="block text-base" style={col ? { color: col } : undefined}>{v}</b>{l}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex-1 min-h-[220px] rounded-xl bg-black/20 p-3 relative">
+        <span className="inline-block text-[10px] font-black px-3 py-1 rounded-full mb-2" style={{ background: pl.color, color: "#05050f" }}>PERTANYAAN #{p.idx + 1}</span>
+        <p className="font-bold text-sm md:text-lg leading-snug mb-3">{q.pertanyaan}</p>
+        <div className="grid gap-2">
+          {q.opsi.map((o, i) => {
+            let st;
+            if (lock) {
+              if (o === q.jawabanBenar) st = { background: "rgba(16,185,129,.35)", borderColor: "#34d399" };
+              else if (o === lock.pick) st = { background: "rgba(244,63,94,.35)", borderColor: "#fb7185" };
+            }
+            return (
+              <button key={i} type="button" disabled={!!lock} onClick={() => onAnswer(pi, o)} style={st}
+                className="glass-btn flex items-center gap-2 text-left p-3 rounded-xl font-bold text-sm md:text-base active:scale-95 disabled:cursor-default">
+                <span className="w-7 h-7 shrink-0 rounded-md flex items-center justify-center text-xs font-black" style={{ background: pl.color, color: "#05050f" }}>{pl.ansLabels[i]}</span>
+                <span className="min-w-0">{o}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {lock && (
+          <div className={`mt-3 rounded-xl p-2.5 text-center font-black text-sm animate-popIn flex items-center justify-center gap-2 ${lock.ok ? "bg-emerald-500/25 text-emerald-300" : "bg-rose-500/25 text-rose-300"}`}>
+            {lock.ok ? <><ShieldCheck size={18} /> LARI 1 LANGKAH! 🏃💨</> : <><XOctagon size={18} /> TETAP DI TEMPAT! ❌</>}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
-function makePlayer(id, x, y) {
-  return {
-    id, x, y, score: 0, chests: 0,
-    benar: 0, salah: 0, dijawab: 0,
-  };
-}
-
-function makeMap(size, count, players) {
-  const occupied = new Set(players.map((p) => `${p.x},${p.y}`));
-  const spots = [];
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (!occupied.has(`${x},${y}`)) spots.push({ x, y });
-    }
-  }
-
-  const shuffled = shuffle(spots);
-  return shuffled.slice(0, count).map((pos, i) => ({
-    id: `chest-${i}`,
-    ...pos,
-    status: "available",
-    questionIndex: i,
-  }));
-}
-
-export default function HartaKarunPage() {
+/* ============================================================
+   HALAMAN
+   ============================================================ */
+export default function BalapLariDuel() {
   const router = useRouter();
+  const env = useBarakEnv();
 
-  const [screen, setScreen] = useState("home");
-  const [difficulty, setDifficulty] = useState("sedang");
-  const [count, setCount] = useState(10);
-  const [questions, setQuestions] = useState([]);
-  const [players, setPlayers] = useState([]);
-  const [chests, setChests] = useState([]);
-  const [activeQuestion, setActiveQuestion] = useState(null);
-  const [remaining, setRemaining] = useState(TIME_LIMIT);
-  const [feedback, setFeedback] = useState("");
+  const [phase, setPhase] = useState("setup");
+  const [tingkat, setTingkat] = useState("Mudah");
+  const [jumlah, setJumlah] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [usedFallback, setUsedFallback] = useState(false);
-  const [resultReason, setResultReason] = useState("");
-  const questionCursor = useRef(0);
+  const [error, setError] = useState("");
+  const [g, setG] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(WAKTU);
+  const [result, setResult] = useState(null);
 
-  const size = count === 5 ? 7 : count === 10 ? 9 : 11;
-  const opened = chests.filter((c) => c.status === "opened").length;
+  const gRef = useRef(null);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const endedRef = useRef(false);
+  const timers = useRef([]);
 
-  const loadQuestions = useCallback(async () => {
+  const later = (fn, ms) => { timers.current.push(setTimeout(fn, ms)); };
+  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  const commit = (n) => { gRef.current = n; setG(n); };
+  useEffect(() => () => clearTimers(), []);
+
+  const count = useCountdown(phase === "countdown", () => setPhase("playing"));
+
+  const selesai = (alasan) => {
+    const cur = gRef.current;
+    if (!cur || endedRef.current) return;
+    endedRef.current = true;
+    const [a, b] = cur.p;
+    let w = -1;
+    if (a.steps !== b.steps) w = a.steps > b.steps ? 0 : 1;
+    else if (akurasi(a) !== akurasi(b)) w = akurasi(a) > akurasi(b) ? 0 : 1;
+    setResult({ winner: w, reason: alasan });
+    setPhase("finished");
+  };
+
+  const jawab = (pi, opsi) => {
+    const cur = gRef.current;
+    if (!cur || cur.over || endedRef.current || phaseRef.current !== "playing") return;
+    const pl = cur.p[pi];
+    if (pl.lock) return;
+    const q = soalSaatIni(cur, pi);
+    const benar = opsi === q.jawabanBenar;
+    const steps = pl.steps + (benar ? 1 : 0);
+    const menang = steps >= cur.target;
+    commit({
+      ...cur,
+      over: menang,
+      p: cur.p.map((x, i) => (i === pi
+        ? { ...x, lock: { ok: benar, pick: opsi }, steps, ok: x.ok + (benar ? 1 : 0), bad: x.bad + (benar ? 0 : 1) }
+        : x)),
+    });
+    if (menang) {
+      later(() => selesai(`${DUEL[pi].nama} sampai di garis finis!`), 1100);
+    } else {
+      later(() => {
+        const c2 = gRef.current;
+        if (!c2) return;
+        commit({ ...c2, p: c2.p.map((x, i) => (i === pi ? { ...x, lock: null, idx: x.idx + 1 } : x)) });
+      }, benar ? FB_OK : FB_BAD);
+    }
+  };
+
+  const mulai = async () => {
     setLoading(true);
-    setMessage("");
-
+    setError("");
     try {
-      const q = query(
-        collection(db, "daftar_soal"),
-        where("materi", "==", MATERIAL),
-        where("tingkat", "==", difficulty)
-      );
-      const snapshot = await getDocs(q);
-      const list = snapshot.docs
-        .map((d) => normalizeQuestion(d.data()))
-        .filter((x) => x.pertanyaan && x.opsi.length >= 2 && x.jawabanBenar != null);
-
-      if (list.length) {
-        setUsedFallback(false);
-        return shuffle(list);
-      }
-
-      setUsedFallback(true);
-      setMessage("Soal Firebase untuk tingkat ini belum tersedia. Soal cadangan digunakan.");
-      return shuffle(FALLBACK.map(normalizeQuestion));
-    } catch (error) {
-      console.error("Gagal memuat soal:", error);
-      setUsedFallback(true);
-      setMessage("Firebase belum dapat diakses. Soal cadangan digunakan.");
-      return shuffle(FALLBACK.map(normalizeQuestion));
+      const semua = await loadSoal(tingkat);
+      if (semua.length === 0) { setError("Soal tidak ditemukan untuk tingkat ini!"); return; }
+      clearTimers();
+      endedRef.current = false;
+      commit(buatGame(semua, jumlah));
+      setTimeLeft(WAKTU);
+      setResult(null);
+      setPhase("countdown");
+    } catch (e) {
+      setError("Gagal memuat soal: " + e.message);
     } finally {
       setLoading(false);
     }
-  }, [difficulty]);
-
-  const startGame = async () => {
-    const list = await loadQuestions();
-    if (!list.length) return;
-
-    const p = [
-      makePlayer(1, 0, 0),
-      makePlayer(2, size - 1, size - 1),
-    ];
-
-    questionCursor.current = 0;
-    setQuestions(list);
-    setPlayers(p);
-    setChests(makeMap(size, count, p));
-    setActiveQuestion(null);
-    setFeedback("");
-    setRemaining(TIME_LIMIT);
-    setResultReason("");
-    setScreen("playing");
   };
 
-  const endGame = useCallback((reason) => {
-    setResultReason(reason);
-    setScreen("result");
-    setActiveQuestion(null);
-  }, []);
+  const keluar = () => { if (confirm("Yakin ingin keluar? Pertandingan akan dibatalkan.")) router.push("/dashboard"); };
 
   useEffect(() => {
-    if (screen !== "playing") return;
-
-    const timer = setInterval(() => {
-      setRemaining((v) => {
-        if (v <= 1) {
-          clearInterval(timer);
-          setResultReason("Waktu 3 menit habis!");
-          setScreen("result");
-          setActiveQuestion(null);
-          return 0;
-        }
-        return v - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [screen]);
-
-  const movePlayer = useCallback((playerId, dx, dy) => {
-    if (screen !== "playing" || activeQuestion) return;
-
-    const player = players.find((p) => p.id === playerId);
-    if (!player) return;
-
-    const nx = player.x + dx;
-    const ny = player.y + dy;
-
-    if (nx < 0 || ny < 0 || nx >= size || ny >= size) return;
-
-    const other = players.find((p) => p.id !== playerId);
-    if (other && other.x === nx && other.y === ny) return;
-
-    const chest = chests.find(
-      (c) => c.x === nx && c.y === ny && c.status !== "opened"
-    );
-
-    if (chest && chest.status === "claimed") return;
-
-    setPlayers((old) =>
-      old.map((p) =>
-        p.id === playerId ? { ...p, x: nx, y: ny } : p
-      )
-    );
-
-    if (chest && chest.status === "available") {
-      const q = questions[questionCursor.current % questions.length];
-      questionCursor.current += 1;
-
-      setChests((old) =>
-        old.map((c) =>
-          c.id === chest.id ? { ...c, status: "claimed", by: playerId } : c
-        )
-      );
-
-      setActiveQuestion({
-        playerId,
-        chestId: chest.id,
-        question: q,
-        previousX: player.x,
-        previousY: player.y,
-      });
-      setFeedback("");
-    }
-  }, [screen, activeQuestion, players, chests, size, questions]);
+    if (phase !== "playing") return;
+    const iv = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearInterval(iv);
+  }, [phase]);
 
   useEffect(() => {
-    if (screen !== "playing") return;
+    if (phase === "playing" && timeLeft <= 0) selesai("Waktu 5 menit habis!");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft, phase]);
 
-    const onKeyDown = (e) => {
-      const key = e.key.toLowerCase();
-
-      const controls = {
-        w: [1, 0, -1],
-        s: [1, 0, 1],
-        a: [1, -1, 0],
-        d: [1, 1, 0],
-        arrowup: [2, 0, -1],
-        arrowdown: [2, 0, 1],
-        arrowleft: [2, -1, 0],
-        arrowright: [2, 1, 0],
-      };
-
-      const control = controls[key];
-      if (!control) return;
-
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const onKey = (e) => {
+      const t = ANS_KEYS[e.key];
+      if (!t) return;
       e.preventDefault();
-      movePlayer(control[0], control[1], control[2]);
+      const cur = gRef.current;
+      if (!cur) return;
+      const o = soalSaatIni(cur, t[0]).opsi[t[1]];
+      if (o !== undefined) jawab(t[0], o);
     };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen, movePlayer]);
+  if (!env.ready) {
+    return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-[#00f3ff] font-black tracking-widest animate-pulse">MEMUAT ARENA...</div>;
+  }
 
-  const answerQuestion = (selected) => {
-    if (!activeQuestion || screen !== "playing") return;
-
-    const { playerId, chestId, question, previousX, previousY } = activeQuestion;
-    const correct =
-      String(selected).trim() === String(question.jawabanBenar).trim();
-
-    setPlayers((old) =>
-      old.map((p) => {
-        if (p.id !== playerId) return p;
-        return {
-          ...p,
-          x: correct ? p.x : previousX,
-          y: correct ? p.y : previousY,
-          score: p.score + (correct ? POINTS[difficulty] : 0),
-          chests: p.chests + (correct ? 1 : 0),
-          benar: p.benar + (correct ? 1 : 0),
-          salah: p.salah + (correct ? 0 : 1),
-          dijawab: p.dijawab + 1,
-        };
-      })
-    );
-
-    setChests((old) =>
-      old.map((c) =>
-        c.id === chestId
-          ? { ...c, status: correct ? "opened" : "available", by: null }
-          : c
-      )
-    );
-
-    setFeedback(
-      correct
-        ? `BENAR! +${POINTS[difficulty]} poin. ${question.pembahasan}`
-        : `BELUM TEPAT! Peti masih terkunci. ${question.pembahasan}`
-    );
-
-    setActiveQuestion(null);
-
-    if (correct && opened + 1 >= count) {
-      endGame("Seluruh harta karun berhasil dibuka!");
-    }
-  };
-
-  const formatTime = (n) =>
-    `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
-
-  const resetGame = () => {
-    setScreen("home");
-    setPlayers([]);
-    setChests([]);
-    setQuestions([]);
-    setActiveQuestion(null);
-    setFeedback("");
-    setMessage("");
-    setRemaining(TIME_LIMIT);
-    setResultReason("");
-  };
-
-  const winner = (() => {
-    if (players.length !== 2) return null;
-    const [a, b] = players;
-    if (a.score !== b.score) return a.score > b.score ? a.id : b.id;
-    if (a.chests !== b.chests) return a.chests > b.chests ? a.id : b.id;
-
-    const accA = a.dijawab ? a.benar / a.dijawab : 0;
-    const accB = b.dijawab ? b.benar / b.dijawab : 0;
-    if (accA !== accB) return accA > accB ? a.id : b.id;
-    return null;
-  })();
-
-  const styles = `
-    * { box-sizing:border-box; }
-    .treasure-root { min-height:100vh; padding:22px; color:#f8fafc;
-      font-family:Arial,sans-serif;
-      background:radial-gradient(ellipse at top,#245a50 0%,#153c3b 46%,#0a1e2c 100%); }
-    .treasure-wrap { max-width:1120px; margin:auto; }
-    .treasure-top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:22px; }
-    .treasure-logo { font-size:clamp(22px,4vw,34px); font-weight:1000; }
-    .treasure-sub { color:#c3e8d6; font-size:13px; margin-top:5px; }
-    .treasure-btn { border:0; border-radius:12px; padding:12px 16px; font-weight:900; cursor:pointer; }
-    .treasure-btn:disabled { opacity:.6; cursor:wait; }
-    .treasure-primary { background:#ffd166; color:#26352a; box-shadow:0 5px 0 #c58e26; }
-    .treasure-muted { background:#ffffff13; border:1px solid #ffffff2b; color:#f0fff7; }
-    .treasure-panel { background:#ffffff0d; border:1px solid #ffffff21; border-radius:24px; padding:clamp(18px,4vw,30px); box-shadow:0 20px 60px #0003; }
-    .treasure-title { font-size:clamp(27px,5vw,40px); font-weight:1000; margin:0 0 8px; }
-    .treasure-desc { color:#c3e8d6; line-height:1.65; margin:0 0 22px; }
-    .treasure-field { margin:22px 0; }
-    .treasure-label { display:block; font-size:12px; font-weight:900; color:#d7f4e3; margin-bottom:10px; }
-    .treasure-options { display:flex; flex-wrap:wrap; gap:10px; }
-    .treasure-choice { padding:12px 16px; border-radius:12px; border:1px solid #ffffff30; background:#0e2e31; color:#f0fff7; font-weight:900; cursor:pointer; }
-    .treasure-choice.active { background:#ffd166; color:#26352a; border-color:#ffd166; }
-    .treasure-note { background:#16433c; color:#d9ffed; padding:12px 14px; border-radius:12px; font-size:13px; margin:14px 0; line-height:1.5; }
-    .treasure-hud { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
-    .treasure-clock { font-size:27px; font-weight:1000; font-variant-numeric:tabular-nums; }
-    .treasure-statrow { display:flex; flex-wrap:wrap; gap:8px; }
-    .treasure-stat { padding:8px 10px; border-radius:10px; background:#ffffff12; font-size:12px; }
-    .treasure-board-wrap { display:grid; grid-template-columns:minmax(0,1fr) 245px; gap:18px; align-items:start; }
-    .treasure-board { width:100%; display:grid; gap:3px; background:#0e3329; border:5px solid #d6b77a; border-radius:15px; padding:5px; aspect-ratio:1; }
-    .treasure-cell { position:relative; min-width:0; min-height:0; display:flex; align-items:center; justify-content:center; border-radius:4px; background:#9cce83; font-size:clamp(12px,2.2vw,25px); }
-    .treasure-cell.alt { background:#8ec374; }
-    .treasure-cell.open { background:#b9db8e; }
-    .treasure-cell.claimed { background:#e8c878; }
-    .treasure-player { position:absolute; z-index:3; display:flex; align-items:center; justify-content:center; width:90%; height:90%; font-size:clamp(15px,2.6vw,29px); filter:drop-shadow(0 2px 2px #0004); animation:treasure-bob .65s infinite alternate ease-in-out; }
-    @keyframes treasure-bob { from{transform:translateY(1px)} to{transform:translateY(-2px)} }
-    .treasure-side { display:grid; gap:12px; }
-    .treasure-player-card { border-radius:17px; padding:15px; background:#ffffff; color:#18392d; border-top:5px solid var(--pcolor); }
-    .treasure-player-card h3 { margin:0 0 10px; font-size:16px; }
-    .treasure-player-card p { margin:6px 0; font-size:12px; }
-    .treasure-dpad { display:grid; grid-template-columns:repeat(3,36px); grid-template-rows:repeat(3,34px); gap:4px; justify-content:center; margin-top:10px; }
-    .treasure-dpad button { border:0; border-radius:7px; background:#e2efe5; color:#214734; font-weight:1000; cursor:pointer; touch-action:manipulation; }
-    .treasure-dpad button:active { background:#ffd166; }
-    .treasure-legend { font-size:11px; color:#537060; text-align:center; margin-top:8px; }
-    .treasure-question { margin-top:18px; background:#fff; color:#1a3528; border-radius:20px; padding:20px; }
-    .treasure-question h3 { margin:0 0 12px; font-size:19px; }
-    .treasure-answer-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
-    .treasure-answer { border:1px solid #d7e4d9; background:#f4f8f2; color:#203c2a; border-radius:11px; padding:12px; text-align:left; font-weight:800; cursor:pointer; overflow-wrap:anywhere; }
-    .treasure-answer:hover { background:#e5f4df; border-color:#4e9b68; }
-    .treasure-results { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:22px 0; }
-    .treasure-result-card { background:#ffffff0d; border:1px solid #ffffff28; border-radius:18px; padding:18px; }
-    .treasure-result-card p { color:#d9f2e2; margin:9px 0; }
-    @media(max-width:760px) {
-      .treasure-root{padding:12px}
-      .treasure-board-wrap{grid-template-columns:1fr}
-      .treasure-board{max-width:600px;margin:auto}
-      .treasure-side{grid-template-columns:repeat(2,minmax(0,1fr))}
-      .treasure-player-card{padding:12px}
-      .treasure-results{grid-template-columns:1fr}
-    }
-    @media(max-width:420px) {
-      .treasure-side{grid-template-columns:1fr}
-      .treasure-answer-grid{grid-template-columns:1fr}
-    }
-  `;
+  const showGame = (phase === "countdown" || phase === "playing") && g;
 
   return (
-    <main className="treasure-root">
-      <style>{styles}</style>
-      <div className="treasure-wrap">
-        <header className="treasure-top">
-          <div>
-            <div className="treasure-logo">🗺️ TREASURE QUEST</div>
-            <div className="treasure-sub">Duel Petualangan • Ciri-ciri Bangun Datar</div>
+    <Shell env={env} pauseMusic={phase === "playing"}>
+      {phase === "setup" && (
+        <SetupCard
+          title="Duel Balap Lari"
+          tagline="Jawab cepat dan tepat, majukan karaktermu ke garis finis!"
+          Icon={Flag}
+          tema={env.tema}
+          controls={["Jawab: tap panel kiri atau tombol 1 2 3 4", "Jawab: tap panel kanan atau tombol 7 8 9 0"]}
+          rules={[
+            "Kedua pemain berlomba di lintasan masing-masing, dan soal muncul di panel masing-masing.",
+            "Jawaban benar: karaktermu maju 1 langkah.",
+            "Jawaban salah: karaktermu tetap di tempat dan harus menunggu sebentar.",
+            "Pemain yang lebih dulu mencapai garis finis menang.",
+            "Jika waktu 5 menit habis, pemain dengan langkah terbanyak yang menang (seri: akurasi).",
+          ]}
+          tingkat={tingkat}
+          onTingkat={setTingkat}
+          extra={{ label: "Langkah Menuju Finis", value: jumlah, onChange: setJumlah, options: [{ value: 5, label: "5" }, { value: 10, label: "10" }, { value: 15, label: "15" }] }}
+          onStart={mulai}
+          startLabel="MULAI BALAPAN!"
+          loading={loading}
+          error={error}
+          onBack={() => router.push("/dashboard")}
+        />
+      )}
+
+      {showGame && (
+        <>
+          <header className="relative z-20 shrink-0 flex items-center justify-between gap-2 px-3 md:px-6 py-2 glass-panel" style={{ borderRadius: 0, borderWidth: "0 0 2px 0" }}>
+            <div className="min-w-0">
+              <p className="font-black text-sm md:text-base truncate">Duel Balap Lari</p>
+              <p className="text-[10px] md:text-xs text-[var(--text-muted)] font-bold">{tingkat} · Finis di langkah ke-{g.target}</p>
+            </div>
+            <TimerPill sisa={timeLeft} />
+            <button onClick={keluar} className="glass-btn px-3 py-2 rounded-xl flex items-center gap-1.5 text-xs font-bold hover:!border-red-400 hover:text-red-400">
+              <LogOut size={14} /> Keluar
+            </button>
+          </header>
+
+          <div className="relative z-10 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden custom-scrollbar p-2 md:p-3">
+            <div className="mx-auto w-full max-w-[1500px] lg:h-full grid grid-cols-2 lg:grid-cols-[minmax(0,32fr)_minmax(0,36fr)_minmax(0,32fr)] lg:grid-rows-1 gap-2 md:gap-3">
+              <div className="col-span-2 lg:col-span-1 lg:col-start-2 lg:row-start-1 min-h-0 h-[46dvh] lg:h-full">
+                <Track g={g} tema={env.tema} />
+              </div>
+              <RacePanel pi={0} g={g} tema={env.tema} onAnswer={jawab} className="lg:col-start-1 lg:row-start-1 lg:h-full" />
+              <RacePanel pi={1} g={g} tema={env.tema} onAnswer={jawab} className="lg:col-start-3 lg:row-start-1 lg:h-full" />
+            </div>
           </div>
-          <button className="treasure-btn treasure-muted"
-            onClick={() => router.push("/dashboard")}>← Dashboard</button>
-        </header>
+        </>
+      )}
 
-        {screen === "home" && (
-          <section className="treasure-panel">
-            <div style={{ fontSize: 62, marginBottom: 8 }}>🧭 🗺️ 💰</div>
-            <h1 className="treasure-title">Berburu Harta Karun</h1>
-            <p className="treasure-desc">
-              Jelajahi pulau misterius! Gunakan strategi untuk menemukan peti.
-              Jawab soal bangun datar dengan benar untuk memperoleh harta dan poin.
-              Siapa yang menjadi pemburu harta karun terbaik?
-            </p>
+      {phase === "countdown" && <CountdownOverlay count={count} />}
 
-            <div className="treasure-field">
-              <span className="treasure-label">TINGKAT KESULITAN</span>
-              <div className="treasure-options">
-                {["mudah", "sedang", "sulit"].map((d) => (
-                  <button key={d}
-                    className={`treasure-choice ${difficulty === d ? "active" : ""}`}
-                    onClick={() => setDifficulty(d)}>
-                    {d === "mudah" ? "🟢" : d === "sedang" ? "🟡" : "🔴"} {d.toUpperCase()} · {POINTS[d]} poin
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="treasure-field">
-              <span className="treasure-label">JUMLAH PETI HARTA KARUN</span>
-              <div className="treasure-options">
-                {[5, 10, 20].map((n) => (
-                  <button key={n}
-                    className={`treasure-choice ${count === n ? "active" : ""}`}
-                    onClick={() => setCount(n)}>
-                    {n} Peti · {n === 5 ? "7×7" : n === 10 ? "9×9" : "11×11"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="treasure-note">
-              🔴 Player 1: WASD · 🔵 Player 2: tombol panah.
-              <br />Keduanya bermain bergantian ketika soal peti sedang ditampilkan.
-            </div>
-
-            {message && <div className="treasure-note">{message}</div>}
-
-            <button className="treasure-btn treasure-primary"
-              disabled={loading} onClick={startGame}>
-              {loading ? "Memuat soal..." : "MULAI PETUALANGAN 🏴‍☠️"}
-            </button>
-          </section>
-        )}
-
-        {screen === "playing" && (
-          <section className="treasure-panel">
-            <div className="treasure-hud">
-              <div>
-                <div className="treasure-label">PETA PETUALANGAN</div>
-                <div style={{ fontWeight: 900 }}>Peti terbuka: {opened}/{count}</div>
-              </div>
-              <div className="treasure-clock">⏱ {formatTime(remaining)}</div>
-            </div>
-
-            <div className="treasure-statrow" style={{ marginBottom: 16 }}>
-              {players.map((p) => (
-                <span className="treasure-stat" key={p.id}>
-                  {p.id === 1 ? "🔴" : "🔵"} Player {p.id}: {p.score} poin · {p.chests} peti
-                </span>
-              ))}
-              <span className="treasure-stat">Kesulitan: {difficulty.toUpperCase()}</span>
-            </div>
-
-            <div className="treasure-board-wrap">
-              <div>
-                <div className="treasure-board"
-                  style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}>
-                  {Array.from({ length: size * size }, (_, i) => {
-                    const x = i % size;
-                    const y = Math.floor(i / size);
-                    const player = players.find((p) => p.x === x && p.y === y);
-                    const chest = chests.find((c) => c.x === x && c.y === y);
-                    let cls = "treasure-cell";
-                    if ((x + y) % 2) cls += " alt";
-                    if (chest?.status === "opened") cls += " open";
-                    if (chest?.status === "claimed") cls += " claimed";
-
-                    return (
-                      <div key={`${x}-${y}`} className={cls}>
-                        {chest && chest.status !== "opened" && (
-                          <span>{chest.status === "claimed" ? "🔒" : "🎁"}</span>
-                        )}
-                        {chest?.status === "opened" && <span>✨</span>}
-                        {player && (
-                          <span className="treasure-player">
-                            {player.id === 1 ? "🧑‍🚀" : "🧝"}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {feedback && (
-                  <div className="treasure-note" role="status">{feedback}</div>
-                )}
-
-                {activeQuestion && (
-                  <div className="treasure-question">
-                    <div className="treasure-label" style={{ color: "#387b4d" }}>
-                      🎁 PETI DITEMUKAN · PLAYER {activeQuestion.playerId}
-                    </div>
-                    <h3>{activeQuestion.question.pertanyaan}</h3>
-                    <div className="treasure-answer-grid">
-                      {activeQuestion.question.opsi.map((opt, i) => (
-                        <button key={i} className="treasure-answer"
-                          onClick={() => answerQuestion(opt)}>
-                          {String.fromCharCode(65 + i)}. {opt}
-                        </button>
-                      ))}
-                    </div>
-                    {activeQuestion.question.pembahasan && (
-                      <p style={{ color: "#67806c", fontSize: 12, marginTop: 12 }}>
-                        Pembahasan akan ditampilkan setelah jawaban dipilih.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <aside className="treasure-side">
-                {players.map((p) => (
-                  <div key={p.id} className="treasure-player-card"
-                    style={{ "--pcolor": p.id === 1 ? "#ff665e" : "#35b8ff" }}>
-                    <h3>{p.id === 1 ? "🔴 PLAYER 1" : "🔵 PLAYER 2"}</h3>
-                    <p>Skor: <b>{p.score}</b></p>
-                    <p>Peti: <b>{p.chests}</b></p>
-                    <p>Benar: <b>{p.benar}</b> · Salah: <b>{p.salah}</b></p>
-                    <div className="treasure-dpad">
-                      <span />
-                      <button onClick={() => movePlayer(p.id, 0, -1)}>▲</button>
-                      <span />
-                      <button onClick={() => movePlayer(p.id, -1, 0)}>◀</button>
-                      <button onClick={() => movePlayer(p.id, 0, 0)}>•</button>
-                      <button onClick={() => movePlayer(p.id, 1, 0)}>▶</button>
-                      <span />
-                      <button onClick={() => movePlayer(p.id, 0, 1)}>▼</button>
-                      <span />
-                    </div>
-                    <div className="treasure-legend">
-                      {p.id === 1 ? "Kontrol: W A S D" : "Kontrol: tombol panah"}
-                    </div>
-                  </div>
-                ))}
-              </aside>
-            </div>
-
-            <div style={{ textAlign: "center", marginTop: 18 }}>
-              <button className="treasure-btn treasure-muted"
-                onClick={() => {
-                  if (confirm("Yakin ingin membatalkan permainan?")) resetGame();
-                }}>
-                Batalkan permainan
-              </button>
-            </div>
-          </section>
-        )}
-
-        {screen === "result" && (
-          <section className="treasure-panel">
-            <div style={{ fontSize: 58 }}>🏆</div>
-            <h1 className="treasure-title">
-              {winner ? `PLAYER ${winner} MENJADI JUARA!` : "PERTANDINGAN SERI!"}
-            </h1>
-            <p className="treasure-desc">{resultReason}</p>
-
-            <div className="treasure-results">
-              {players.map((p) => (
-                <div className="treasure-result-card" key={p.id}
-                  style={{ borderTop: `5px solid ${p.id === 1 ? "#ff665e" : "#35b8ff"}` }}>
-                  <h3>{p.id === 1 ? "🔴 PLAYER 1" : "🔵 PLAYER 2"} {winner === p.id ? "👑" : ""}</h3>
-                  <p>Skor: <b>{p.score}</b></p>
-                  <p>Peti terbuka: <b>{p.chests}</b></p>
-                  <p>Benar: <b>{p.benar}</b> · Salah: <b>{p.salah}</b></p>
-                  <p>Akurasi: <b>{p.dijawab ? Math.round(p.benar / p.dijawab * 100) : 0}%</b></p>
-                </div>
-              ))}
-            </div>
-
-            <button className="treasure-btn treasure-primary" onClick={resetGame}>
-              MAIN LAGI ↻
-            </button>
-            <button className="treasure-btn treasure-muted"
-              style={{ marginLeft: 10 }}
-              onClick={() => router.push("/dashboard")}>
-              Dashboard
-            </button>
-          </section>
-        )}
-      </div>
-    </main>
+      {phase === "finished" && g && result && (
+        <ResultCard
+          tema={env.tema}
+          winner={result.winner}
+          reason={result.reason}
+          rows={[
+            ["Langkah", `${g.p[0].steps}/${g.target}`, `${g.p[1].steps}/${g.target}`],
+            ["Jawaban Benar", g.p[0].ok, g.p[1].ok],
+            ["Jawaban Salah", g.p[0].bad, g.p[1].bad],
+            ["Akurasi", `${akurasi(g.p[0])}%`, `${akurasi(g.p[1])}%`],
+          ]}
+          onAgain={() => setPhase("setup")}
+          onBack={() => router.push("/dashboard")}
+        />
+      )}
+    </Shell>
   );
 }

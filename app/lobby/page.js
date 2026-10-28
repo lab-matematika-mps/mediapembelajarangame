@@ -1,4 +1,4 @@
-\// lab-matematika-mps/mediapembelajarangame/app/lobby/page.js
+// lab-matematika-mps/mediapembelajarangame/app/lobby/page.js
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";

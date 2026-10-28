@@ -146,7 +146,12 @@ const SQ_DIAGS = [
 ];
 
 // Peta petualangan (dipakai di slide pembatas)
-const ADVENTURE_STOPS = ["Bagian Bangun Datar", "Segitiga", "Segi Empat", "Evaluasi"];
+const ADVENTURE_STOPS = [
+  { full: "Bagian Bangun Datar", short: "Bagian" },
+  { full: "Segitiga", short: "Segitiga" },
+  { full: "Segi Empat", short: "Segi Empat" },
+  { full: "Evaluasi", short: "Evaluasi" },
+];
 
 // ==========================================
 // KOMPONEN BANTU SVG
@@ -171,21 +176,24 @@ const AdventureRail = ({ active }) => {
   const last = ADVENTURE_STOPS.length - 1;
   const pct = (i) => `${(i / last) * 100}%`;
   return (
-    <div className="w-full max-w-2xl mx-auto mb-10 px-8">
+    <div className="w-full max-w-2xl mx-auto px-8 pb-7">
       <div className="relative flex justify-between">
         <div className="absolute top-4 left-4 right-4 h-1.5 rounded-full bg-black/30 border border-white/10 overflow-hidden">
           <div className="rail-fill h-full rounded-full bg-[var(--primary)]" style={{ "--from": pct(Math.max(0, active - 1)), "--to": pct(active) }} />
         </div>
-        {ADVENTURE_STOPS.map((name, i) => {
+        {ADVENTURE_STOPS.map((stop, i) => {
           const isDone = i < active;
           const isActive = i === active;
           return (
-            <div key={name} className="relative z-10 w-8 flex flex-col items-center">
+            <div key={stop.full} className="relative z-10 w-8 flex flex-col items-center">
               {isActive && <span className="corner-ring absolute top-0 w-8 h-8 rounded-full border-2 border-[var(--primary)]" />}
               <span className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 transition-colors ${isDone ? "bg-[var(--primary)] border-[var(--primary)] text-[var(--on-primary)]" : isActive ? "bg-[var(--primary)] border-white text-[var(--on-primary)] shadow-[var(--glow-shadow)]" : "bg-black/40 border-white/20 text-[var(--text-muted)]"}`}>
                 {isDone ? <CheckCircle2 size={16} /> : i + 1}
               </span>
-              <span className={`absolute top-10 text-[10px] md:text-xs font-bold whitespace-nowrap ${isActive ? "text-[var(--primary)]" : "text-[var(--text-muted)]"}`}>{name}</span>
+              <span className={`absolute top-10 text-[11px] md:text-xs font-bold whitespace-nowrap ${isActive ? "text-[var(--primary)]" : "text-[var(--text-muted)]"}`}>
+                <span className="hidden sm:inline">{stop.full}</span>
+                <span className="sm:hidden">{stop.short}</span>
+              </span>
             </div>
           );
         })}
@@ -316,7 +324,7 @@ export default function PetualanganMateri() {
   // ==========================================
 
   const renderSlide1 = () => (
-    <div className="relative flex flex-col items-center justify-center h-full text-center animate-materi-fade py-6 md:py-10">
+    <div className="relative flex flex-col items-center justify-center min-h-full text-center animate-materi-fade py-4 md:py-8">
       {/* Dekorasi melayang: di samping kiri & kanan, tidak menutupi tulisan */}
       <div className="hidden lg:block pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute left-[3%] top-[48%] w-24 h-24 animate-materi-float" style={{ animationDelay: '0s' }}><ShapeSVG shape={SHAPES.samaSisi} color="#fef08a" rotate="rotate(15deg)" /></div>
@@ -353,17 +361,17 @@ export default function PetualanganMateri() {
     const allExplored = partExplored.length === 3;
 
     return (
-      <div className="flex flex-col h-full animate-materi-fade pb-8">
-        <div className="text-center mb-4 shrink-0 px-2">
-          <span className="inline-block bg-[var(--primary)]/20 text-[var(--primary)] px-4 py-1 rounded-full font-black text-xs mb-3 border border-[var(--primary)]/30 tracking-widest">PENGENALAN</span>
-          <h2 className="text-2xl md:text-4xl font-black text-gradient mb-2">BAGIAN-BAGIAN BANGUN DATAR</h2>
-          <p className="text-sm md:text-base text-[var(--text-main)] font-medium max-w-2xl mx-auto">Kenali sisi, sudut, dan diagonal lewat sebuah persegi. Klik salah satu kotak untuk menjelajah!</p>
+      <div className="min-h-full flex flex-col animate-materi-fade pb-4">
+        <div className="text-center mb-3 shrink-0 px-2">
+          <span className="inline-block bg-[var(--primary)]/20 text-[var(--primary)] px-3 py-0.5 rounded-full font-black text-[10px] md:text-xs mb-2 border border-[var(--primary)]/30 tracking-widest">PENGENALAN</span>
+          <h2 className="text-xl md:text-3xl font-black text-gradient mb-1">BAGIAN-BAGIAN BANGUN DATAR</h2>
+          <p className="text-xs md:text-base text-[var(--text-main)] font-medium max-w-2xl mx-auto">Kenali sisi, sudut, dan diagonal lewat sebuah persegi. Klik salah satu kotak untuk menjelajah!</p>
         </div>
 
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] gap-4 md:gap-6 max-w-5xl mx-auto w-full items-center">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-5 max-w-5xl mx-auto w-full items-center">
           {/* KIRI: gambar persegi */}
-          <div className="glass-panel p-4 md:p-6 flex items-center justify-center" style={{ backgroundImage: "radial-gradient(circle, color-mix(in srgb, var(--primary) 28%, transparent) 1px, transparent 1px)", backgroundSize: "18px 18px" }}>
-            <svg viewBox="0 0 240 240" className="w-full max-w-[340px] aspect-square overflow-visible" role="img" aria-label="Persegi beserta sisi, sudut, dan diagonalnya">
+          <div className="glass-panel p-3 md:p-4 flex items-center justify-center" style={{ backgroundImage: "radial-gradient(circle, color-mix(in srgb, var(--primary) 28%, transparent) 1px, transparent 1px)", backgroundSize: "18px 18px" }}>
+            <svg viewBox="0 0 240 240" className="aspect-square overflow-visible mx-auto" style={{ width: "min(100%, 42vh, 420px)" }} role="img" aria-label="Persegi beserta sisi, sudut, dan diagonalnya">
               <defs>
                 {SQ_DIAGS.map((d, i) => (
                   <mask key={i} id={`mask-diag-${i}`} maskUnits="userSpaceOnUse" x="0" y="0" width="240" height="240">
@@ -430,7 +438,7 @@ export default function PetualanganMateri() {
 
           {/* KANAN: 3 kotak + keterangan */}
           <div className="flex flex-col gap-3 md:gap-4">
-            <div className="grid grid-cols-3 md:grid-cols-1 gap-2 md:gap-3">
+            <div className="grid grid-cols-3 gap-2 md:gap-3">
               {["sisi", "sudut", "diagonal"].map((key) => {
                 const act = partActive === key;
                 const seen = partExplored.includes(key);
@@ -439,22 +447,22 @@ export default function PetualanganMateri() {
                     key={key}
                     onClick={() => togglePart(key)}
                     aria-pressed={act}
-                    className={`glass-btn relative p-3 md:p-4 rounded-2xl flex flex-col md:flex-row items-center gap-2 md:gap-4 text-center md:text-left ${act ? "ring-2 ring-[var(--primary)] shadow-[var(--glow-shadow)] bg-[var(--primary)]/15" : ""}`}
+                    className={`glass-btn relative p-2 md:p-3 rounded-2xl flex flex-col lg:flex-row items-center gap-1.5 lg:gap-3 text-center lg:text-left ${act ? "ring-2 ring-[var(--primary)] shadow-[var(--glow-shadow)] bg-[var(--primary)]/15" : ""}`}
                   >
-                    <span className={`w-10 h-10 md:w-12 md:h-12 shrink-0 p-2 rounded-xl border ${act ? "bg-[var(--primary)] text-[var(--on-primary)] border-[var(--primary)]" : "bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30"}`}>
+                    <span className={`w-9 h-9 md:w-11 md:h-11 shrink-0 p-1.5 md:p-2 rounded-xl border ${act ? "bg-[var(--primary)] text-[var(--on-primary)] border-[var(--primary)]" : "bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30"}`}>
                       <PartIcon kind={key} />
                     </span>
                     <span className="flex-1 min-w-0">
                       <b className="block text-base md:text-lg font-black">{PART_INFO[key].label}</b>
-                      <small className="hidden md:block text-xs text-[var(--text-muted)]">{act ? "Klik lagi untuk menutup" : "Klik untuk menjelajah"}</small>
+                      <small className="hidden lg:block text-[11px] text-[var(--text-muted)]">{act ? "Klik lagi untuk menutup" : "Klik untuk menjelajah"}</small>
                     </span>
-                    {seen && <CheckCircle2 size={20} className="absolute top-2 right-2 md:static text-[var(--ok)] shrink-0" />}
+                    {seen && <CheckCircle2 size={20} className="absolute top-1.5 right-1.5 text-[var(--ok)] shrink-0" />}
                   </button>
                 );
               })}
             </div>
 
-            <div key={partActive || "idle"} className="glass-panel p-4 md:p-5 min-h-[170px] flex flex-col justify-center animate-materi-fade">
+            <div key={partActive || "idle"} className="glass-panel p-3 md:p-4 min-h-[150px] flex flex-col justify-center animate-materi-fade">
               {!info ? (
                 <div className="text-center py-2">
                   <MousePointerClick size={32} className="mx-auto mb-2 text-[var(--primary)] animate-bounce" />
@@ -496,28 +504,28 @@ export default function PetualanganMateri() {
 
   // ---------- SLIDE PEMBATAS (peta petualangan) ----------
   const renderTransition = ({ badge, title, subtitle, stop, items, note }) => (
-    <div className="relative flex flex-col items-center justify-center h-full text-center animate-materi-fade py-6">
+    <div className="min-h-full flex flex-col items-center justify-center text-center animate-materi-fade py-2 gap-3 md:gap-4">
       <AdventureRail active={stop} />
-      <span className="inline-block bg-[var(--primary)]/20 text-[var(--primary)] px-4 py-1 rounded-full font-black text-xs mb-4 border border-[var(--primary)]/30 tracking-widest">{badge}</span>
-      <h2 className="text-3xl md:text-5xl font-black text-gradient leading-tight mb-3 px-4">{title}</h2>
-      <p className="text-sm md:text-lg font-medium text-[var(--text-main)] max-w-2xl px-4 mb-2">{subtitle}</p>
+      <span className="inline-block bg-[var(--primary)]/20 text-[var(--primary)] px-4 py-1 rounded-full font-black text-xs border border-[var(--primary)]/30 tracking-widest">{badge}</span>
+      <h2 className="text-2xl md:text-4xl lg:text-5xl font-black text-gradient leading-tight px-4">{title}</h2>
+      <p className="text-sm md:text-base lg:text-lg font-medium text-[var(--text-main)] max-w-2xl px-4">{subtitle}</p>
       {note && (
-        <p className="inline-flex items-center gap-2 text-xs md:text-sm font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/40 px-3 py-1 rounded-full mt-1"><CheckCircle2 size={16} /> {note}</p>
+        <p className="inline-flex items-center gap-2 text-xs md:text-sm font-bold text-[var(--ok)] bg-[var(--ok)]/10 border border-[var(--ok)]/40 px-3 py-1 rounded-full"><CheckCircle2 size={16} /> {note}</p>
       )}
 
-      <div className="flex flex-wrap justify-center gap-4 md:gap-6 my-8 px-4 max-w-3xl">
+      <div className="flex flex-wrap justify-center gap-3 md:gap-5 px-4 max-w-4xl my-1 md:my-2">
         {items.map((it, i) => (
-          <div key={it.label} className="animate-materi-pop flex flex-col items-center gap-2 w-20 md:w-28" style={{ animationDelay: `${0.25 + i * 0.15}s` }}>
-            <div className="w-16 h-16 md:w-24 md:h-24 animate-materi-float" style={{ animationDelay: `${i * 0.4}s` }}>
+          <div key={it.label} className="animate-materi-pop flex flex-col items-center gap-1.5" style={{ width: "clamp(76px, 13vh, 120px)", animationDelay: `${0.25 + i * 0.15}s` }}>
+            <div className="animate-materi-float" style={{ width: "clamp(48px, 10vh, 88px)", height: "clamp(48px, 10vh, 88px)", animationDelay: `${i * 0.4}s` }}>
               <ShapeSVG shape={it.shape} color={it.color} rotate={it.rotate} />
             </div>
-            <span className="text-[11px] md:text-sm font-bold leading-tight">{it.label}</span>
+            <span className="text-xs md:text-sm font-bold leading-tight">{it.label}</span>
           </div>
         ))}
       </div>
 
-      <button onClick={() => setCurrentSlide(prev => prev + 1)} className="glass-btn px-8 py-4 rounded-full text-lg font-black flex items-center gap-2 bg-[var(--primary)] text-slate-900 border-none hover:bg-[var(--primary)] shadow-[var(--glow-shadow)] hover:scale-105 transition-transform">
-        Mulai Menjelajah <ArrowRight size={24} />
+      <button onClick={() => setCurrentSlide(prev => prev + 1)} className="glass-btn px-6 md:px-8 py-3 md:py-4 rounded-full text-base md:text-lg font-black flex items-center gap-2 bg-[var(--primary)] text-slate-900 border-none hover:bg-[var(--primary)] shadow-[var(--glow-shadow)] hover:scale-105 transition-transform">
+        Mulai Menjelajah <ArrowRight size={22} />
       </button>
     </div>
   );
@@ -772,18 +780,18 @@ export default function PetualanganMateri() {
     const handleSelect = (opt) => { if(!isChecked) setQuizAnswers(prev => ({...prev, [qId]: opt})) };
 
     return (
-      <div className="flex flex-col items-center justify-center h-full max-w-4xl mx-auto w-full animate-materi-fade pb-10">
-        <span className="bg-[var(--primary)]/20 text-[var(--primary)] px-4 py-1 rounded-full font-black text-sm mb-6 border border-[var(--primary)]/30 tracking-widest shrink-0">EVALUASI {qId - 9}</span>
+      <div className="flex flex-col items-center justify-center min-h-full max-w-4xl mx-auto w-full animate-materi-fade pb-4">
+        <span className="bg-[var(--primary)]/20 text-[var(--primary)] px-4 py-1 rounded-full font-black text-xs md:text-sm mb-3 border border-[var(--primary)]/30 tracking-widest shrink-0">EVALUASI {qId - 9}</span>
         
-        <div className="glass-panel p-6 w-full text-center relative border-[var(--primary)]/30 mb-6 shrink-0">
-          <h2 className="text-lg md:text-2xl font-bold mb-4 leading-relaxed">{question}</h2>
-          <div className="w-32 h-32 md:w-40 md:h-40 mx-auto mb-6">{image}</div>
+        <div className="glass-panel p-4 md:p-5 w-full text-center relative border-[var(--primary)]/30 mb-4 shrink-0">
+          <h2 className="text-base md:text-xl font-bold mb-3 leading-snug">{question}</h2>
+          <div className="mx-auto mb-4" style={{ width: "clamp(80px, 16vh, 150px)", height: "clamp(80px, 16vh, 150px)" }}>{image}</div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {options.map(opt => {
               const letter = opt.substring(0, 1);
               const isSel = selected === letter;
-              let btnClass = "glass-btn p-3 rounded-xl text-left font-bold text-sm md:text-base flex items-center gap-3 transition-all ";
+              let btnClass = "glass-btn p-2.5 md:p-3 rounded-xl text-left font-bold text-sm md:text-base flex items-center gap-3 transition-all ";
               if (!isChecked) btnClass += isSel ? "ring-2 ring-[var(--primary)] bg-[var(--primary)]/20 scale-[1.02]" : "hover:bg-white/10";
               else {
                 if (letter === correctAnswer) btnClass += "ring-2 ring-[var(--ok)] bg-[var(--ok)]/20";
@@ -806,7 +814,7 @@ export default function PetualanganMateri() {
           {!isChecked ? (
             <button onClick={() => setQuizChecked(prev => ({...prev, [qId]: true}))} disabled={!selected} className="glass-btn px-8 py-3 rounded-full font-black text-lg disabled:opacity-50">Periksa Jawaban</button>
           ) : (
-            <div className={`w-full glass-panel p-5 flex flex-col md:flex-row items-center gap-4 text-left border-l-8 ${isCorrect ? 'border-l-[var(--ok)] bg-[var(--ok)]/10' : 'border-l-[var(--bad)] bg-[var(--bad)]/10'}`}>
+            <div className={`w-full glass-panel p-3 md:p-4 flex flex-col md:flex-row items-center gap-3 text-left border-l-8 ${isCorrect ? 'border-l-[var(--ok)] bg-[var(--ok)]/10' : 'border-l-[var(--bad)] bg-[var(--bad)]/10'}`}>
               <div className={`p-3 rounded-full shrink-0 ${isCorrect ? 'bg-[var(--ok)]/20 text-[var(--ok)]' : 'bg-[var(--bad)]/20 text-[var(--bad)]'}`}>
                 {isCorrect ? <CheckCircle2 size={32}/> : <XCircle size={32}/>}
               </div>
